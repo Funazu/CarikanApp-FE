@@ -89,7 +89,7 @@ const LandingPage = () => {
   };
 
   return (
-    <div className="font-inter max-w-7xl mx-auto px-6 py-8">
+    <div className="font-inter max-w-7xl mx-auto px-4 sm:px-6 py-8">
       {/* Hero Section */}
       <div className="text-center py-16 px-4 bg-gradient-to-br from-primary via-primary-container to-secondary rounded-3xl text-white mb-12 shadow-xl relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.15),transparent)]"></div>
@@ -98,22 +98,22 @@ const LandingPage = () => {
             Amikom Yogyakarta Lost & Found
           </span>
           <h1 className="text-4xl md:text-5xl font-black mb-6 font-outfit leading-tight tracking-tight">
-            Temukan Barangmu yang Hilang <br />di Kampus Amikom
+            Temukan Barangmu yang Hilang <br className="hidden md:inline" />di Kampus Amikom
           </h1>
           <p className="text-purple-100 md:text-lg mb-8 max-w-2xl mx-auto leading-relaxed">
             Platform "Carikan" hadir mempermudah mahasiswa saling berkolaborasi melacak dan mengembalikan barang tercecer di seluruh area gedung kampus.
           </p>
-          <div className="flex flex-wrap justify-center gap-4">
+          <div className="flex flex-col sm:flex-row justify-center gap-4 px-4 sm:px-0">
             <Link 
               to="/dashboard"
-              className="bg-secondary hover:bg-secondary-container hover:text-primary text-white font-bold px-6 py-3.5 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl inline-flex items-center gap-2"
+              className="w-full sm:w-auto bg-secondary hover:bg-secondary-container hover:text-primary text-white font-bold px-6 py-3.5 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl inline-flex items-center justify-center gap-2"
             >
               <span className="material-symbols-outlined text-lg">campaign</span>
               Lapor Kehilangan (LOST)
             </Link>
             <Link 
               to="/dashboard"
-              className="bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold px-6 py-3.5 rounded-xl transition-all duration-200 shadow-md hover:shadow-lg inline-flex items-center gap-2"
+              className="w-full sm:w-auto bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold px-6 py-3.5 rounded-xl transition-all duration-200 shadow-md hover:shadow-lg inline-flex items-center justify-center gap-2"
             >
               <span className="material-symbols-outlined text-lg">volunteer_activism</span>
               Lapor Penemuan (FOUND)
@@ -133,9 +133,15 @@ const LandingPage = () => {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Masukkan kata kunci nama barang..." 
-                className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-secondary focus:ring-1 focus:ring-secondary focus:outline-none transition-all-200"
+                className="w-full pl-10 pr-16 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-secondary focus:ring-1 focus:ring-secondary focus:outline-none transition-all-200"
               />
               <span className="material-symbols-outlined absolute left-3 top-3.5 text-gray-400 text-lg">search</span>
+              <button 
+                type="submit"
+                className="absolute right-2 top-2 bottom-2 px-3 bg-secondary hover:bg-secondary-container hover:text-primary text-white text-xs font-bold rounded-lg transition-all duration-200"
+              >
+                Cari
+              </button>
             </div>
           </div>
           
@@ -165,12 +171,12 @@ const LandingPage = () => {
         </form>
 
         {/* Detailed Filters & Date Range */}
-        <div className="mt-6 pt-6 border-t border-gray-100 flex flex-wrap gap-4 items-center justify-between">
+        <div className="mt-6 pt-6 border-t border-gray-100 flex flex-col lg:flex-row gap-4 lg:items-center lg:justify-between">
           <div className="flex flex-wrap gap-2">
             {/* Type toggle */}
             <button 
               onClick={() => { setSelectedType(''); setPage(1); }}
-              className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${
+              className={`flex-1 sm:flex-none px-4 py-2 text-xs font-bold rounded-lg transition-all ${
                 selectedType === '' 
                   ? 'bg-primary text-white shadow-sm' 
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -180,7 +186,7 @@ const LandingPage = () => {
             </button>
             <button 
               onClick={() => { setSelectedType('LOST'); setPage(1); }}
-              className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${
+              className={`flex-1 sm:flex-none px-4 py-2 text-xs font-bold rounded-lg transition-all ${
                 selectedType === 'LOST' 
                   ? 'bg-primary text-white shadow-sm' 
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -190,7 +196,7 @@ const LandingPage = () => {
             </button>
             <button 
               onClick={() => { setSelectedType('FOUND'); setPage(1); }}
-              className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${
+              className={`flex-1 sm:flex-none px-4 py-2 text-xs font-bold rounded-lg transition-all ${
                 selectedType === 'FOUND' 
                   ? 'bg-primary text-white shadow-sm' 
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -200,26 +206,26 @@ const LandingPage = () => {
             </button>
           </div>
 
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4 w-full lg:w-auto">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
               <input 
                 type="date" 
                 value={startDate}
                 onChange={(e) => { setStartDate(e.target.value); setPage(1); }}
-                className="px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs"
+                className="flex-1 sm:flex-none px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-secondary"
               />
               <span className="text-xs text-gray-400">s/d</span>
               <input 
                 type="date" 
                 value={endDate}
                 onChange={(e) => { setEndDate(e.target.value); setPage(1); }}
-                className="px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs"
+                className="flex-1 sm:flex-none px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-secondary"
               />
             </div>
 
             <button 
               onClick={handleResetFilters}
-              className="text-xs font-bold text-red-500 hover:text-red-700 hover:underline inline-flex items-center gap-1"
+              className="text-xs font-bold text-red-500 hover:text-red-700 hover:underline inline-flex items-center justify-center gap-1 py-2 sm:py-0 w-full sm:w-auto"
             >
               <span className="material-symbols-outlined text-sm">restart_alt</span>
               Reset Filter
@@ -229,15 +235,14 @@ const LandingPage = () => {
       </div>
 
       {/* Main Grid Feed Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-800 font-outfit">Laporan Terkini</h2>
-        <div className="flex gap-2">
-          {/* Status filter toggle tabs */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <h2 className="text-2xl font-bold text-gray-800 font-outfit text-center sm:text-left">Laporan Terkini</h2>
+        <div className="grid grid-cols-3 sm:flex gap-2 w-full sm:w-auto">
           {['OPEN', 'IN_PROCESS', 'RETURNED'].map(st => (
             <button
               key={st}
               onClick={() => { setSelectedStatus(st); setPage(1); }}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+              className={`px-3 py-2 text-xs font-semibold rounded-lg transition-all text-center ${
                 selectedStatus === st 
                   ? 'bg-secondary/15 text-secondary border border-secondary/25'
                   : 'bg-white text-gray-500 border border-gray-100 hover:bg-gray-50'
