@@ -17,6 +17,7 @@ const LandingPage = () => {
   const [selectedStatus, setSelectedStatus] = useState('OPEN'); // default to OPEN for active feed
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   // Pagination state
   const [page, setPage] = useState(1);
@@ -91,39 +92,41 @@ const LandingPage = () => {
   return (
     <div className="font-inter max-w-7xl mx-auto px-4 sm:px-6 py-8">
       {/* Hero Section */}
-      <div className="text-center py-16 px-4 bg-gradient-to-br from-primary via-primary-container to-secondary rounded-3xl text-white mb-12 shadow-xl relative overflow-hidden">
+      <div className="text-center py-8 md:py-16 px-4 bg-gradient-to-br from-primary via-primary-container to-secondary rounded-3xl text-white mb-8 md:mb-12 shadow-xl relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.15),transparent)]"></div>
         <div className="relative z-10 max-w-3xl mx-auto">
-          <span className="bg-purple-800/50 text-tertiary-fixed border border-purple-600/30 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider mb-4 inline-block font-outfit">
+          <span className="bg-purple-800/50 text-tertiary-fixed border border-purple-600/30 text-[10px] md:text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider mb-3 md:mb-4 inline-block font-outfit">
             Amikom Yogyakarta Lost & Found
           </span>
-          <h1 className="text-4xl md:text-5xl font-black mb-6 font-outfit leading-tight tracking-tight">
+          <h1 className="text-2xl md:text-5xl font-black mb-3 md:mb-6 font-outfit leading-tight tracking-tight">
             Temukan Barangmu yang Hilang <br className="hidden md:inline" />di Kampus Amikom
           </h1>
-          <p className="text-purple-100 md:text-lg mb-8 max-w-2xl mx-auto leading-relaxed">
+          <p className="hidden md:block text-purple-100 md:text-lg mb-8 max-w-2xl mx-auto leading-relaxed">
             Platform "Carikan" hadir mempermudah mahasiswa saling berkolaborasi melacak dan mengembalikan barang tercecer di seluruh area gedung kampus.
           </p>
-          <div className="flex flex-col sm:flex-row justify-center gap-4 px-4 sm:px-0">
+          <div className="flex flex-row justify-center gap-3 sm:gap-4 px-2 sm:px-0 mt-4 sm:mt-0">
             <Link 
               to="/dashboard"
-              className="w-full sm:w-auto bg-secondary hover:bg-secondary-container hover:text-primary text-white font-bold px-6 py-3.5 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl inline-flex items-center justify-center gap-2"
+              className="flex-1 sm:flex-none bg-secondary hover:bg-secondary-container hover:text-primary text-white font-bold px-3 py-2.5 sm:px-6 sm:py-3.5 rounded-xl text-xs sm:text-base transition-all duration-200 shadow-lg hover:shadow-xl inline-flex items-center justify-center gap-1.5 sm:gap-2"
             >
-              <span className="material-symbols-outlined text-lg">campaign</span>
-              Lapor Kehilangan (LOST)
+              <span className="material-symbols-outlined text-base sm:text-lg">campaign</span>
+              <span className="md:hidden">Lapor Hilang</span>
+              <span className="hidden md:inline">Lapor Kehilangan (LOST)</span>
             </Link>
             <Link 
               to="/dashboard"
-              className="w-full sm:w-auto bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold px-6 py-3.5 rounded-xl transition-all duration-200 shadow-md hover:shadow-lg inline-flex items-center justify-center gap-2"
+              className="flex-1 sm:flex-none bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold px-3 py-2.5 sm:px-6 sm:py-3.5 rounded-xl text-xs sm:text-base transition-all duration-200 shadow-md hover:shadow-lg inline-flex items-center justify-center gap-1.5 sm:gap-2"
             >
-              <span className="material-symbols-outlined text-lg">volunteer_activism</span>
-              Lapor Penemuan (FOUND)
+              <span className="material-symbols-outlined text-base sm:text-lg">volunteer_activism</span>
+              <span className="md:hidden">Lapor Temuan</span>
+              <span className="hidden md:inline">Lapor Penemuan (FOUND)</span>
             </Link>
           </div>
         </div>
       </div>
 
       {/* Global Search and Filter Bar */}
-      <div className="bg-white border border-gray-100 p-6 rounded-2xl shadow-md mb-8">
+      <div className="bg-white border border-gray-100 p-4 md:p-6 rounded-2xl shadow-md mb-8">
         <form onSubmit={handleSearchSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
           <div className="md:col-span-2">
             <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Cari Barang</label>
@@ -133,7 +136,7 @@ const LandingPage = () => {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Masukkan kata kunci nama barang..." 
-                className="w-full pl-10 pr-16 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-secondary focus:ring-1 focus:ring-secondary focus:outline-none transition-all-200"
+                className="w-full pl-10 pr-16 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-secondary focus:ring-1 focus:ring-secondary focus:outline-none transition-all duration-200"
               />
               <span className="material-symbols-outlined absolute left-3 top-3.5 text-gray-400 text-lg">search</span>
               <button 
@@ -145,24 +148,33 @@ const LandingPage = () => {
             </div>
           </div>
           
-          <div>
+          <button
+            type="button"
+            onClick={() => setShowMobileFilters(!showMobileFilters)}
+            className="md:hidden w-full py-2.5 px-4 border border-gray-200 text-gray-600 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-gray-50"
+          >
+            <span className="material-symbols-outlined text-base">tune</span>
+            {showMobileFilters ? 'Sembunyikan Filter' : 'Tampilkan Filter'}
+          </button>
+
+          <div className={`${showMobileFilters ? 'block' : 'hidden'} md:block`}>
             <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Kategori</label>
             <select 
               value={selectedCategory}
               onChange={(e) => { setSelectedCategory(e.target.value); setPage(1); }}
-              className="w-full px-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-secondary focus:ring-1 focus:ring-secondary focus:outline-none transition-all-200"
+              className="w-full px-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-secondary focus:ring-1 focus:ring-secondary focus:outline-none transition-all duration-200"
             >
               <option value="">Semua Kategori</option>
               {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
 
-          <div>
+          <div className={`${showMobileFilters ? 'block' : 'hidden'} md:block`}>
             <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Lokasi Kampus</label>
             <select 
               value={selectedLocation}
               onChange={(e) => { setSelectedLocation(e.target.value); setPage(1); }}
-              className="w-full px-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-secondary focus:ring-1 focus:ring-secondary focus:outline-none transition-all-200"
+              className="w-full px-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-secondary focus:ring-1 focus:ring-secondary focus:outline-none transition-all duration-200"
             >
               <option value="">Semua Lokasi</option>
               {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
@@ -171,7 +183,7 @@ const LandingPage = () => {
         </form>
 
         {/* Detailed Filters & Date Range */}
-        <div className="mt-6 pt-6 border-t border-gray-100 flex flex-col lg:flex-row gap-4 lg:items-center lg:justify-between">
+        <div className={`${showMobileFilters ? 'flex' : 'hidden'} md:flex mt-6 pt-6 border-t border-gray-100 flex-col lg:flex-row gap-4 lg:items-center lg:justify-between`}>
           <div className="flex flex-wrap gap-2">
             {/* Type toggle */}
             <button 
@@ -207,19 +219,19 @@ const LandingPage = () => {
           </div>
 
           <div className="flex flex-col sm:flex-row sm:items-center gap-4 w-full lg:w-auto">
-            <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 w-full sm:w-auto">
               <input 
                 type="date" 
                 value={startDate}
                 onChange={(e) => { setStartDate(e.target.value); setPage(1); }}
-                className="flex-1 sm:flex-none px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-secondary"
+                className="w-full px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-secondary"
               />
               <span className="text-xs text-gray-400">s/d</span>
               <input 
                 type="date" 
                 value={endDate}
                 onChange={(e) => { setEndDate(e.target.value); setPage(1); }}
-                className="flex-1 sm:flex-none px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-secondary"
+                className="w-full px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-secondary"
               />
             </div>
 
@@ -286,7 +298,7 @@ const LandingPage = () => {
               >
                 <div>
                   {/* Card Image Banner */}
-                  <div className="relative h-[200px] overflow-hidden bg-gray-50 border-b border-gray-50">
+                  <div className="relative h-[150px] sm:h-[200px] overflow-hidden bg-gray-50 border-b border-gray-50">
                     <ImageFallback 
                       src={item.image_url} 
                       alt={item.title} 
@@ -308,8 +320,8 @@ const LandingPage = () => {
                   </div>
 
                   {/* Card Text Content */}
-                  <div className="p-5 text-left">
-                    <div className="flex gap-2 mb-2 text-[10px] font-bold text-secondary uppercase">
+                  <div className="p-4 sm:p-5 text-left">
+                    <div className="flex flex-wrap gap-2 mb-2 text-[10px] font-bold text-secondary uppercase">
                       <span className="flex items-center gap-0.5">
                         <span className="material-symbols-outlined text-xs select-none">label</span>
                         {item.category?.name}
@@ -332,10 +344,10 @@ const LandingPage = () => {
                 </div>
 
                 {/* Card Button footer */}
-                <div className="p-5 pt-0">
+                <div className="p-4 sm:p-5 pt-0">
                   <Link 
                     to={`/items/${item.id}`}
-                    className="w-full block text-center bg-purple-50 text-secondary hover:bg-secondary hover:text-white text-xs font-bold py-3 rounded-xl transition-all-200"
+                    className="w-full block text-center bg-purple-50 text-secondary hover:bg-secondary hover:text-white text-xs font-bold py-3 rounded-xl transition-all duration-200"
                   >
                     Lihat Detail & Hubungi
                   </Link>
@@ -374,34 +386,42 @@ const LandingPage = () => {
       {/* Info Section */}
       <div className="mt-20 py-12 border-t border-gray-100">
         <h2 className="text-2xl font-bold text-center text-gray-800 font-outfit mb-12">Cara Kerja Platform</h2>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-          <div className="flex flex-col items-center text-center p-4">
-            <div className="w-12 h-12 rounded-2xl bg-purple-50 text-secondary font-bold flex items-center justify-center mb-4 text-lg">1</div>
-            <h4 className="font-bold text-gray-900 mb-2 text-sm font-outfit">Lapor Barang</h4>
-            <p className="text-gray-500 text-xs leading-relaxed">
-              Buat postingan laporan Kehilangan (LOST) atau Temuan (FOUND) barang lengkap dengan lokasi & kategori.
-            </p>
-          </div>
-          <div className="flex flex-col items-center text-center p-4">
-            <div className="w-12 h-12 rounded-2xl bg-purple-50 text-secondary font-bold flex items-center justify-center mb-4 text-lg">2</div>
-            <h4 className="font-bold text-gray-900 mb-2 text-sm font-outfit">Sistem Auto-Match</h4>
-            <p className="text-gray-500 text-xs leading-relaxed">
-              Sistem akan mencocokkan laporan kehilangan Anda dengan temuan barang sejenis di lokasi yang sama secara real-time.
-            </p>
-          </div>
-          <div className="flex flex-col items-center text-center p-4">
-            <div className="w-12 h-12 rounded-2xl bg-purple-50 text-secondary font-bold flex items-center justify-center mb-4 text-lg">3</div>
-            <h4 className="font-bold text-gray-900 mb-2 text-sm font-outfit">Verifikasi Satpam</h4>
-            <p className="text-gray-500 text-xs leading-relaxed">
-              Pemilik asli mengajukan klaim dengan ciri rahasia. Satpam memvalidasi bukti tersebut sebelum menyetujui.
-            </p>
-          </div>
-          <div className="flex flex-col items-center text-center p-4">
-            <div className="w-12 h-12 rounded-2xl bg-purple-50 text-secondary font-bold flex items-center justify-center mb-4 text-lg">4</div>
-            <h4 className="font-bold text-gray-900 mb-2 text-sm font-outfit">Serah Terima Fisik</h4>
-            <p className="text-gray-500 text-xs leading-relaxed">
-              Setelah disetujui Satpam, pemilik sah dapat langsung mendatangi Pos Satpam untuk serah terima barang secara resmi.
-            </p>
+        <div className="relative">
+          {/* Connector line for desktop */}
+          <div className="hidden md:block absolute top-10 left-[12%] right-[12%] h-0.5 bg-purple-100 z-0"></div>
+          
+          <div className="flex md:grid md:grid-cols-4 overflow-x-auto md:overflow-x-visible gap-4 pb-4 md:pb-0 snap-x snap-mandatory relative z-10">
+            <div className="flex-shrink-0 w-[260px] md:w-auto snap-center bg-white border border-gray-100 rounded-2xl p-5 text-center shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 flex flex-col items-center">
+              <div className="w-10 h-10 rounded-xl bg-primary text-white font-bold flex items-center justify-center mb-4 text-sm shadow-md ring-4 ring-purple-50 z-10">1</div>
+              <h4 className="font-bold text-gray-900 mb-2 text-sm font-outfit">Lapor Barang</h4>
+              <p className="text-gray-500 text-xs leading-relaxed">
+                Buat postingan laporan Kehilangan (LOST) atau Temuan (FOUND) barang lengkap dengan lokasi & kategori.
+              </p>
+            </div>
+            
+            <div className="flex-shrink-0 w-[260px] md:w-auto snap-center bg-white border border-gray-100 rounded-2xl p-5 text-center shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 flex flex-col items-center">
+              <div className="w-10 h-10 rounded-xl bg-primary text-white font-bold flex items-center justify-center mb-4 text-sm shadow-md ring-4 ring-purple-50 z-10">2</div>
+              <h4 className="font-bold text-gray-900 mb-2 text-sm font-outfit">Sistem Auto-Match</h4>
+              <p className="text-gray-500 text-xs leading-relaxed">
+                Sistem akan mencocokkan laporan kehilangan Anda dengan temuan barang sejenis di lokasi yang sama secara real-time.
+              </p>
+            </div>
+
+            <div className="flex-shrink-0 w-[260px] md:w-auto snap-center bg-white border border-gray-100 rounded-2xl p-5 text-center shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 flex flex-col items-center">
+              <div className="w-10 h-10 rounded-xl bg-primary text-white font-bold flex items-center justify-center mb-4 text-sm shadow-md ring-4 ring-purple-50 z-10">3</div>
+              <h4 className="font-bold text-gray-900 mb-2 text-sm font-outfit">Verifikasi Satpam</h4>
+              <p className="text-gray-500 text-xs leading-relaxed">
+                Pemilik asli mengajukan klaim dengan ciri rahasia. Satpam memvalidasi bukti tersebut sebelum menyetujui.
+              </p>
+            </div>
+
+            <div className="flex-shrink-0 w-[260px] md:w-auto snap-center bg-white border border-gray-100 rounded-2xl p-5 text-center shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 flex flex-col items-center">
+              <div className="w-10 h-10 rounded-xl bg-primary text-white font-bold flex items-center justify-center mb-4 text-sm shadow-md ring-4 ring-purple-50 z-10">4</div>
+              <h4 className="font-bold text-gray-900 mb-2 text-sm font-outfit">Serah Terima Fisik</h4>
+              <p className="text-gray-500 text-xs leading-relaxed">
+                Setelah disetujui Satpam, pemilik sah dapat langsung mendatangi Pos Satpam untuk serah terima barang secara resmi.
+              </p>
+            </div>
           </div>
         </div>
       </div>

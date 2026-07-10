@@ -7,15 +7,15 @@ const StatusBadge = ({ status }) => {
   switch (status) {
     case 'OPEN':
       classes = "bg-primary-container text-primary-fixed-dim border border-primary/20";
-      text = "Aktif (Open)";
+      text = "Aktif";
       break;
     case 'IN_PROCESS':
       classes = "bg-amber-50 text-amber-700 border border-amber-200";
-      text = "Dalam Proses (In Process)";
+      text = "Diproses";
       break;
     case 'RETURNED':
       classes = "bg-emerald-50 text-emerald-700 border border-emerald-200";
-      text = "Selesai (Returned)";
+      text = "Selesai";
       break;
     default:
       classes = "bg-gray-100 text-gray-700 border border-gray-200";

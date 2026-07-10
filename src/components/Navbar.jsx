@@ -69,7 +69,7 @@ const Navbar = () => {
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
   return (
-    <nav className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-gray-100 font-inter px-6 py-4">
+    <nav className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-gray-100 font-inter px-4 py-3 sm:px-6 sm:py-4">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         
         {/* Brand Logo & Mobile Toggle */}
@@ -84,11 +84,11 @@ const Navbar = () => {
             </span>
           </button>
 
-          <Link to="/" className="flex items-center gap-2 group">
-            <span className="material-symbols-outlined text-secondary text-3xl font-bold transition-all duration-200 group-hover:scale-105 select-none">
+          <Link to="/" className="flex items-center gap-1.5 sm:gap-2 group">
+            <span className="material-symbols-outlined text-secondary text-2xl sm:text-3xl font-bold transition-all duration-200 group-hover:scale-105 select-none">
               travel_explore
             </span>
-            <span className="font-outfit text-2xl font-bold tracking-tight text-primary">
+            <span className="font-outfit text-xl sm:text-2xl font-bold tracking-tight text-primary">
               Cari<span className="text-secondary font-semibold">kan.</span>
             </span>
           </Link>
@@ -214,10 +214,10 @@ const Navbar = () => {
           ) : (
             <Link 
               to="/login"
-              className="inline-flex items-center gap-2 bg-secondary text-white text-sm font-bold px-5 py-2.5 rounded-xl hover:bg-secondary-container hover:text-primary transition-all duration-200 shadow-md hover:shadow-lg"
+              className="inline-flex items-center gap-1.5 bg-secondary text-white text-xs sm:text-sm font-bold px-3.5 py-2 sm:px-5 sm:py-2.5 rounded-xl hover:bg-secondary-container hover:text-primary transition-all duration-200 shadow-md hover:shadow-lg"
             >
-              <span className="material-symbols-outlined text-lg select-none">login</span>
-              Masuk / Daftar
+              <span className="material-symbols-outlined text-base sm:text-lg select-none">login</span>
+              <span>Masuk<span className="hidden sm:inline"> / Daftar</span></span>
             </Link>
           )}
         </div>
