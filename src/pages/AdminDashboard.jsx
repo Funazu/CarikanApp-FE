@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import api from '../services/api';
 import StatusBadge from '../components/StatusBadge';
+import ImageFallback from '../components/ImageFallback';
 
 const AdminDashboard = () => {
   const { user } = useAuth();
@@ -23,26 +24,44 @@ const AdminDashboard = () => {
   const [locations, setLocations] = useState([]);
   const [allReports, setAllReports] = useState([]);
   const [incomingClaims, setIncomingClaims] = useState([]);
+  const [usersList, setUsersList] = useState([]);
 
-  // Modal / Form state for Categories CRUD
+  // Filter states for Moderasi Laporan
+  const [modSearchTerm, setModSearchTerm] = useState('');
+  const [modTypeFilter, setModTypeFilter] = useState('ALL');
+  const [modStatusFilter, setModStatusFilter] = useState('ALL');
+  const [modCategoryFilter, setModCategoryFilter] = useState('ALL');
+
+  // Detail Modal state for Moderasi Laporan
+  const [detailItem, setDetailItem] = useState(null);
+
+  // Filter states for Persetujuan Klaim
+  const [claimSearchTerm, setClaimSearchTerm] = useState('');
+  const [claimStatusFilter, setClaimStatusFilter] = useState('ALL');
+
+  // Filter & Edit states for Daftar Pengguna (Users)
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+  const [userRoleFilter, setUserRoleFilter] = useState('ALL');
+  const [editingUser, setEditingUser] = useState(null);
+  const [newTrustScore, setNewTrustScore] = useState(0);
+  const [newRole, setNewRole] = useState('USER');
+  const [usersLoading, setUsersLoading] = useState(false);
+
+  // Form states for Categories & Locations CRUD
   const [catName, setCatName] = useState('');
   const [catDesc, setCatDesc] = useState('');
   const [editingCatId, setEditingCatId] = useState(null);
 
-  // Modal / Form state for Locations CRUD
   const [locName, setLocName] = useState('');
   const [locDesc, setLocDesc] = useState('');
   const [editingLocId, setEditingLocId] = useState(null);
 
-  // Audit Logs modal state
+  // Modal states for Audit Logs & Takeover
   const [logsItem, setLogsItem] = useState(null);
   const [itemLogs, setItemLogs] = useState([]);
-
-  // Takeover Satpam modal state
   const [takeoverItem, setTakeoverItem] = useState(null);
   const [takeoverStorageLoc, setTakeoverStorageLoc] = useState('');
 
-  const [loading, setLoading] = useState(false);
   const [statsLoading, setStatsLoading] = useState(true);
 
   // Fetch admin data on tab change
@@ -60,11 +79,20 @@ const AdminDashboard = () => {
         const res = await api.get('/locations');
         setLocations(res.data);
       } else if (activeSubTab === 'moderation') {
-        const res = await api.get('/items');
-        setAllReports(res.data.data);
+        const [reportsRes, catRes] = await Promise.all([
+          api.get('/items'),
+          api.get('/categories')
+        ]);
+        setAllReports(reportsRes.data.data);
+        setCategories(catRes.data);
       } else if (activeSubTab === 'claims') {
         const res = await api.get('/claims/incoming');
         setIncomingClaims(res.data);
+      } else if (activeSubTab === 'users') {
+        setUsersLoading(true);
+        const res = await api.get('/admin/users');
+        setUsersList(res.data);
+        setUsersLoading(false);
       }
     } catch (err) {
       console.error(err);
@@ -75,7 +103,7 @@ const AdminDashboard = () => {
     fetchData();
   }, [activeSubTab]);
 
-  // Categories Handlers
+  // Handlers for Categories CRUD
   const handleSaveCategory = async (e) => {
     e.preventDefault();
     try {
@@ -112,7 +140,7 @@ const AdminDashboard = () => {
     }
   };
 
-  // Locations Handlers
+  // Handlers for Locations CRUD
   const handleSaveLocation = async (e) => {
     e.preventDefault();
     try {
@@ -160,6 +188,9 @@ const AdminDashboard = () => {
       showToast('Proses Takeover Satpam sukses! Laporan berhasil diperbarui.', 'success');
       setTakeoverItem(null);
       setTakeoverStorageLoc('');
+      if (detailItem && detailItem.id === takeoverItem.id) {
+        setDetailItem(null);
+      }
       fetchData();
     } catch (err) {
       showToast('Gagal melakukan takeover.', 'error');
@@ -171,6 +202,9 @@ const AdminDashboard = () => {
     try {
       await api.delete(`/items/${itemId}`);
       showToast('Postingan laporan berhasil dihapus.', 'success');
+      if (detailItem && detailItem.id === itemId) {
+        setDetailItem(null);
+      }
       fetchData();
     } catch (err) {
       showToast('Gagal menghapus postingan.', 'error');
@@ -203,6 +237,70 @@ const AdminDashboard = () => {
     }
   };
 
+  // Update User Trust Score / Role handler
+  const handleOpenEditUserModal = (u) => {
+    setEditingUser(u);
+    setNewTrustScore(u.trust_score || 0);
+    setNewRole(u.role || 'USER');
+  };
+
+  const handleUpdateUserSubmit = async (e) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    try {
+      await api.patch(`/admin/users/${editingUser.id}`, {
+        trust_score: Number(newTrustScore),
+        role: newRole,
+      });
+      showToast(`Data pengguna ${editingUser.name} berhasil diperbarui!`, 'success');
+      setEditingUser(null);
+      fetchData();
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Gagal memperbarui data pengguna.', 'error');
+    }
+  };
+
+  // Computed / Filtered datasets
+  const filteredReports = allReports.filter((item) => {
+    const matchesSearch =
+      !modSearchTerm ||
+      item.title?.toLowerCase().includes(modSearchTerm.toLowerCase()) ||
+      item.description?.toLowerCase().includes(modSearchTerm.toLowerCase()) ||
+      item.secret_feature?.toLowerCase().includes(modSearchTerm.toLowerCase()) ||
+      item.user?.name?.toLowerCase().includes(modSearchTerm.toLowerCase());
+
+    const matchesType = modTypeFilter === 'ALL' || item.type === modTypeFilter;
+    const matchesStatus = modStatusFilter === 'ALL' || item.status === modStatusFilter;
+    const matchesCategory = modCategoryFilter === 'ALL' || item.category_id === modCategoryFilter;
+
+    return matchesSearch && matchesType && matchesStatus && matchesCategory;
+  });
+
+  const filteredClaims = incomingClaims.filter((claim) => {
+    const matchesSearch =
+      !claimSearchTerm ||
+      claim.item?.title?.toLowerCase().includes(claimSearchTerm.toLowerCase()) ||
+      claim.claimer?.name?.toLowerCase().includes(claimSearchTerm.toLowerCase()) ||
+      claim.claimer?.email?.toLowerCase().includes(claimSearchTerm.toLowerCase()) ||
+      claim.proof_description?.toLowerCase().includes(claimSearchTerm.toLowerCase());
+
+    const matchesStatus = claimStatusFilter === 'ALL' || claim.status === claimStatusFilter;
+
+    return matchesSearch && matchesStatus;
+  });
+
+  const filteredUsers = usersList.filter((u) => {
+    const matchesSearch =
+      !userSearchTerm ||
+      u.name?.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+      u.email?.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+      u.contact_info?.toLowerCase().includes(userSearchTerm.toLowerCase());
+
+    const matchesRole = userRoleFilter === 'ALL' || u.role === userRoleFilter;
+
+    return matchesSearch && matchesRole;
+  });
+
   if (!user || user.role !== 'ADMIN') {
     return (
       <div className="min-h-[60svh] flex items-center justify-center font-inter">
@@ -218,29 +316,37 @@ const AdminDashboard = () => {
   return (
     <div className="font-inter max-w-7xl mx-auto px-6 py-8">
       
+      {/* Top Header */}
       <div className="flex flex-wrap items-center justify-between border-b border-gray-100 pb-6 mb-8 gap-4">
         <div>
           <span className="bg-purple-100 text-secondary border border-purple-200 text-[10px] font-bold px-2.5 py-0.5 rounded-md uppercase tracking-wider mb-2 inline-block">
-            Dashboard Staff
+            Dashboard Staff Satpam & Moderasi
           </span>
           <h1 className="text-2xl md:text-3xl font-black text-gray-900 font-outfit text-left">
-            Admin Panel Moderasi
+            Admin Panel Carikan
           </h1>
         </div>
 
         {/* Admin Navigation Pills */}
         <div className="flex flex-wrap gap-2">
-          {['stats', 'categories', 'locations', 'moderation', 'claims'].map((sub) => (
+          {[
+            { id: 'stats', label: 'Statistik' },
+            { id: 'moderation', label: 'Moderasi Laporan' },
+            { id: 'claims', label: 'Persetujuan Klaim' },
+            { id: 'users', label: 'Daftar Pengguna' },
+            { id: 'categories', label: 'Kategori Master' },
+            { id: 'locations', label: 'Titik Lokasi' },
+          ].map((sub) => (
             <button
-              key={sub}
-              onClick={() => setActiveSubTab(sub)}
-              className={`px-4 py-2 text-xs font-bold rounded-xl transition-all-200 ${
-                activeSubTab === sub 
+              key={sub.id}
+              onClick={() => setActiveSubTab(sub.id)}
+              className={`px-4 py-2 text-xs font-bold rounded-xl transition-all-200 cursor-pointer ${
+                activeSubTab === sub.id 
                   ? 'bg-secondary text-white shadow-sm' 
                   : 'bg-white text-gray-600 border border-gray-100 hover:bg-purple-50'
               }`}
             >
-              {sub === 'stats' ? 'Statistik' : sub === 'categories' ? 'Kategori Master' : sub === 'locations' ? 'Titik Lokasi' : sub === 'moderation' ? 'Moderasi Laporan' : 'Persetujuan Klaim'}
+              {sub.label}
             </button>
           ))}
         </div>
@@ -294,10 +400,459 @@ const AdminDashboard = () => {
         </div>
       )}
 
-      {/* 2. CRUD Categories */}
+      {/* 2. Moderasi Laporan (Dengan Filter & Modal Detail) */}
+      {activeSubTab === 'moderation' && (
+        <div className="text-left space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-gray-100 pb-4 gap-4">
+            <div>
+              <h3 className="font-bold text-gray-900 text-base font-outfit">Moderasi Seluruh Laporan Aktif</h3>
+              <p className="text-xs text-gray-500">Kelola, verifikasi loker penyimpanan, dan hapus laporan barang hilang/temuan.</p>
+            </div>
+            <span className="text-xs font-bold text-purple-700 bg-purple-50 px-3 py-1.5 rounded-xl border border-purple-100">
+              Menampilkan {filteredReports.length} dari {allReports.length} Laporan
+            </span>
+          </div>
+
+          {/* Filter Toolbar */}
+          <div className="bg-white border border-gray-100 p-4 rounded-2xl shadow-xs space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {/* Search input */}
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Cari Laporan</label>
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-3 top-2.5 text-gray-400 text-lg">search</span>
+                  <input 
+                    type="text" 
+                    value={modSearchTerm}
+                    onChange={(e) => setModSearchTerm(e.target.value)}
+                    placeholder="Judul, deskripsi, pelapor..."
+                    className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:bg-white focus:border-secondary focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Type Filter */}
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Tipe Laporan</label>
+                <select 
+                  value={modTypeFilter}
+                  onChange={(e) => setModTypeFilter(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:bg-white focus:border-secondary focus:outline-none"
+                >
+                  <option value="ALL">Semua Tipe (LOST & FOUND)</option>
+                  <option value="LOST">HILANG (LOST)</option>
+                  <option value="FOUND">TEMUAN (FOUND)</option>
+                </select>
+              </div>
+
+              {/* Status Filter */}
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Status Laporan</label>
+                <select 
+                  value={modStatusFilter}
+                  onChange={(e) => setModStatusFilter(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:bg-white focus:border-secondary focus:outline-none"
+                >
+                  <option value="ALL">Semua Status</option>
+                  <option value="IN_PROCESS">IN_PROCESS (Menunggu Satpam)</option>
+                  <option value="OPEN">OPEN (Terpublikasi)</option>
+                  <option value="RETURNED">RETURNED (Dikembalikan)</option>
+                </select>
+              </div>
+
+              {/* Category Filter */}
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Kategori</label>
+                <select 
+                  value={modCategoryFilter}
+                  onChange={(e) => setModCategoryFilter(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:bg-white focus:border-secondary focus:outline-none"
+                >
+                  <option value="ALL">Semua Kategori</option>
+                  {categories.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {(modSearchTerm || modTypeFilter !== 'ALL' || modStatusFilter !== 'ALL' || modCategoryFilter !== 'ALL') && (
+              <div className="flex justify-end pt-1">
+                <button 
+                  onClick={() => { setModSearchTerm(''); setModTypeFilter('ALL'); setModStatusFilter('ALL'); setModCategoryFilter('ALL'); }}
+                  className="text-xs text-red-600 font-bold hover:underline flex items-center gap-1"
+                >
+                  <span className="material-symbols-outlined text-sm">restart_alt</span>
+                  Reset Filter Moderasi
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* List display */}
+          {filteredReports.length === 0 ? (
+            <div className="p-12 text-center bg-white border border-gray-100 rounded-2xl">
+              <span className="material-symbols-outlined text-gray-300 text-6xl mb-2">search_off</span>
+              <p className="text-gray-500 text-sm font-semibold">Tidak ada laporan yang cocok dengan filter Anda.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {filteredReports.map(item => (
+                <div key={item.id} className="p-5 border border-gray-100 rounded-2xl bg-white space-y-4 hover:border-purple-200 transition-all shadow-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 pb-3">
+                    <div className="flex items-center gap-3">
+                      <StatusBadge status={item.status} />
+                      <span className={`px-2.5 py-0.5 text-[9px] font-black rounded-md text-white uppercase ${
+                        item.type === 'LOST' ? 'bg-red-500' : 'bg-blue-600'
+                      }`}>
+                        {item.type === 'LOST' ? 'HILANG' : 'TEMUAN'}
+                      </span>
+                      <h4 className="font-bold text-gray-900 text-sm font-outfit">{item.title}</h4>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => setDetailItem(item)}
+                        className="bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-sm">visibility</span>
+                        Detail & Foto
+                      </button>
+
+                      <button 
+                        onClick={() => handleFetchAuditLogs(item)}
+                        className="bg-purple-50 text-secondary hover:bg-secondary hover:text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-sm">history</span>
+                        Log Audit
+                      </button>
+
+                      {((item.type === 'FOUND' && item.status === 'IN_PROCESS') || 
+                        (item.type === 'LOST' && item.status === 'OPEN' && !item.storage_location)) && (
+                        <button 
+                          onClick={() => setTakeoverItem(item)}
+                          className="bg-amber-50 text-amber-700 hover:bg-amber-600 hover:text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-sm">hail</span>
+                          Takeover Satpam
+                        </button>
+                      )}
+
+                      <button 
+                        onClick={() => handleDeleteReport(item.id)}
+                        className="bg-red-50 text-red-600 hover:bg-red-600 hover:text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                      >
+                        Hapus
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Body information cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
+                    <div>
+                      <p className="text-gray-400 uppercase font-bold tracking-wider">Ciri Rahasia</p>
+                      <p className="text-purple-900 font-bold mt-1 bg-purple-50/70 p-2 rounded-lg border border-purple-100">
+                        "{item.secret_feature || '-'}"
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 uppercase font-bold tracking-wider">Lokasi Kampus</p>
+                      <p className="text-gray-800 font-semibold mt-1">{item.location?.name}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 uppercase font-bold tracking-wider">Lokasi Penyimpanan Fisik</p>
+                      <p className="text-purple-800 font-bold mt-1">{item.storage_location || 'Belum Dititipkan'}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 uppercase font-bold tracking-wider">Pelapor</p>
+                      <p className="text-gray-900 font-semibold mt-1">{item.user?.name} ({item.user?.email})</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 3. Persetujuan Klaim (Dengan Filter) */}
+      {activeSubTab === 'claims' && (
+        <div className="text-left space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-gray-100 pb-4 gap-4">
+            <div>
+              <h3 className="font-bold text-gray-900 text-base font-outfit">Persetujuan Klaim Masuk (Claim Center Satpam)</h3>
+              <p className="text-xs text-gray-500">Verifikasi deskripsi ciri rahasia pengklaim sebelum menyerahkan barang fisik.</p>
+            </div>
+            <span className="text-xs font-bold text-purple-700 bg-purple-50 px-3 py-1.5 rounded-xl border border-purple-100">
+              Menampilkan {filteredClaims.length} dari {incomingClaims.length} Klaim
+            </span>
+          </div>
+
+          {/* Claim Filter Toolbar */}
+          <div className="bg-white border border-gray-100 p-4 rounded-2xl shadow-xs space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Cari Klaim</label>
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-3 top-2.5 text-gray-400 text-lg">search</span>
+                  <input 
+                    type="text" 
+                    value={claimSearchTerm}
+                    onChange={(e) => setClaimSearchTerm(e.target.value)}
+                    placeholder="Nama pengklaim, email, barang..."
+                    className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:bg-white focus:border-secondary focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Status Keputusan Klaim</label>
+                <select 
+                  value={claimStatusFilter}
+                  onChange={(e) => setClaimStatusFilter(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:bg-white focus:border-secondary focus:outline-none"
+                >
+                  <option value="ALL">Semua Status Klaim</option>
+                  <option value="PENDING">PENDING (Review Satpam)</option>
+                  <option value="APPROVED">APPROVED (Disetujui)</option>
+                  <option value="REJECTED">REJECTED (Ditolak)</option>
+                </select>
+              </div>
+
+              {(claimSearchTerm || claimStatusFilter !== 'ALL') && (
+                <div className="flex items-end justify-end pb-1">
+                  <button 
+                    onClick={() => { setClaimSearchTerm(''); setClaimStatusFilter('ALL'); }}
+                    className="text-xs text-red-600 font-bold hover:underline flex items-center gap-1"
+                  >
+                    <span className="material-symbols-outlined text-sm">restart_alt</span>
+                    Reset Filter Klaim
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Claim Cards */}
+          {filteredClaims.length === 0 ? (
+            <div className="p-12 text-center bg-white border border-gray-100 rounded-2xl">
+              <span className="material-symbols-outlined text-gray-300 text-6xl mb-2">find_in_page</span>
+              <p className="text-gray-500 text-sm font-semibold">Tidak ada pengajuan klaim yang cocok dengan filter.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {filteredClaims.map(claim => (
+                <div key={claim.id} className="p-5 border border-gray-100 rounded-2xl bg-white space-y-4 shadow-xs hover:border-purple-200 transition-all">
+                  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 pb-2">
+                    <div>
+                      <p className="text-[10px] text-gray-400 font-bold uppercase">Laporan Barang</p>
+                      <h4 className="font-bold text-gray-900 text-sm font-outfit">{claim.item?.title}</h4>
+                    </div>
+                    <span className="text-[10px] text-gray-400 font-semibold">Diajukan: {new Date(claim.created_at).toLocaleString('id-ID')}</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="text-xs space-y-2">
+                      <p className="font-bold text-gray-500">Pengklaim: <span className="text-gray-900">{claim.claimer?.name} ({claim.claimer?.email})</span></p>
+                      <p className="text-gray-400 font-bold uppercase mt-2">Ciri Rahasia (Data Sistem):</p>
+                      <p className="text-purple-900 font-bold bg-purple-50 p-2.5 rounded-lg border border-purple-100">"{claim.item?.secret_feature}"</p>
+                      
+                      <p className="text-gray-400 font-bold uppercase mt-2">Deskripsi Bukti Pengklaim:</p>
+                      <p className="text-gray-800 bg-gray-50 border border-gray-100 p-3 rounded-lg leading-relaxed font-semibold">
+                        "{claim.proof_description}"
+                      </p>
+                    </div>
+
+                    {/* Claim Proof Image if any */}
+                    {claim.proof_image_url && (
+                      <div>
+                        <p className="text-[10px] text-gray-400 font-bold uppercase mb-2">Foto Bukti Fisik Pengklaim</p>
+                        <img 
+                          src={claim.proof_image_url} 
+                          alt="Bukti Klaim" 
+                          className="h-36 object-contain rounded-xl border border-gray-200"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {claim.status === 'PENDING' ? (
+                    <div className="flex justify-end gap-2 pt-2 border-t border-gray-50">
+                      <button 
+                        onClick={() => handleResolveClaim(claim.id, 'REJECTED')}
+                        className="bg-red-50 hover:bg-red-600 hover:text-white text-red-600 text-xs font-bold px-4 py-2 rounded-xl transition-all cursor-pointer"
+                      >
+                        Tolak Klaim
+                      </button>
+                      <button 
+                        onClick={() => handleResolveClaim(claim.id, 'APPROVED')}
+                        className="bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-700 text-xs font-bold px-4 py-2 rounded-xl transition-all cursor-pointer"
+                      >
+                        Setujui Klaim & Serahkan Barang
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="text-right border-t border-gray-50 pt-2">
+                      <span className={`text-xs font-bold uppercase inline-block px-3 py-1 rounded-lg ${
+                        claim.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-600 border border-red-200'
+                      }`}>
+                        Status Keputusan Satpam: {claim.status}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 4. Menu Baru: Daftar Pengguna & Poin Reputasi */}
+      {activeSubTab === 'users' && (
+        <div className="text-left space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-gray-100 pb-4 gap-4">
+            <div>
+              <h3 className="font-bold text-gray-900 text-base font-outfit">Daftar Pengguna & Poin Reputasi (Gamifikasi)</h3>
+              <p className="text-xs text-gray-500">Pantau poin kejujuran (*Trust Score*) dan kelola hak akses pengguna.</p>
+            </div>
+            <span className="text-xs font-bold text-purple-700 bg-purple-50 px-3 py-1.5 rounded-xl border border-purple-100">
+              Total {filteredUsers.length} Pengguna Terdaftar
+            </span>
+          </div>
+
+          {/* User Search & Filter */}
+          <div className="bg-white border border-gray-100 p-4 rounded-2xl shadow-xs space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Cari Pengguna</label>
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-3 top-2.5 text-gray-400 text-lg">search</span>
+                  <input 
+                    type="text" 
+                    value={userSearchTerm}
+                    onChange={(e) => setUserSearchTerm(e.target.value)}
+                    placeholder="Cari nama, email, no. WA..."
+                    className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:bg-white focus:border-secondary focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Filter Role</label>
+                <select 
+                  value={userRoleFilter}
+                  onChange={(e) => setUserRoleFilter(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:bg-white focus:border-secondary focus:outline-none"
+                >
+                  <option value="ALL">Semua Role (ADMIN & USER)</option>
+                  <option value="USER">USER (Mahasiswa / Dosen / Staf)</option>
+                  <option value="ADMIN">ADMIN (Satpam / Pengelola)</option>
+                </select>
+              </div>
+
+              {(userSearchTerm || userRoleFilter !== 'ALL') && (
+                <div className="flex items-end justify-end pb-1">
+                  <button 
+                    onClick={() => { setUserSearchTerm(''); setUserRoleFilter('ALL'); }}
+                    className="text-xs text-red-600 font-bold hover:underline flex items-center gap-1"
+                  >
+                    <span className="material-symbols-outlined text-sm">restart_alt</span>
+                    Reset Filter User
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* User Table List */}
+          {usersLoading ? (
+            <div className="w-8 h-8 border-4 border-secondary border-t-transparent rounded-full animate-spin mx-auto py-8"></div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="p-12 text-center bg-white border border-gray-100 rounded-2xl">
+              <span className="material-symbols-outlined text-gray-300 text-6xl mb-2">person_search</span>
+              <p className="text-gray-500 text-sm font-semibold">Tidak ada pengguna yang cocok dengan kriteria filter.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto bg-white border border-gray-100 rounded-2xl shadow-xs">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100 text-gray-400 font-bold uppercase text-[10px] tracking-wider">
+                    <th className="py-3.5 px-4">Pengguna</th>
+                    <th className="py-3.5 px-4">Email</th>
+                    <th className="py-3.5 px-4">Role</th>
+                    <th className="py-3.5 px-4">Poin Reputasi</th>
+                    <th className="py-3.5 px-4">Aktivitas Laporan</th>
+                    <th className="py-3.5 px-4">Kontak Default</th>
+                    <th className="py-3.5 px-4 text-right">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filteredUsers.map((u) => {
+                    const score = u.trust_score || 0;
+                    let badgeColor = 'bg-purple-50 text-purple-700 border-purple-200';
+                    let badgeLabel = '🥉 Standard User';
+                    if (score >= 50) {
+                      badgeColor = 'bg-amber-100 text-amber-800 border-amber-300';
+                      badgeLabel = '🥇 Gold Honest';
+                    } else if (score >= 25) {
+                      badgeColor = 'bg-slate-100 text-slate-700 border-slate-300';
+                      badgeLabel = '🥈 Silver Reporter';
+                    }
+
+                    return (
+                      <tr key={u.id} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-2.5">
+                            <img 
+                              src={u.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}&background=random`} 
+                              alt={u.name} 
+                              className="w-8 h-8 rounded-full object-cover border border-gray-200"
+                            />
+                            <span className="font-bold text-gray-900">{u.name}</span>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4 font-semibold text-gray-600">{u.email}</td>
+                        <td className="py-3.5 px-4">
+                          <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase ${
+                            u.role === 'ADMIN' ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-purple-100 text-secondary border border-purple-200'
+                          }`}>
+                            {u.role}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-1.5">
+                            <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border flex items-center gap-1 ${badgeColor}`}>
+                              <span className="material-symbols-outlined text-xs select-none">stars</span>
+                              {score} Poin ({badgeLabel})
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4 text-gray-600 font-medium">
+                          {u.items_count || 0} Laporan • {u.claims_count || 0} Klaim
+                        </td>
+                        <td className="py-3.5 px-4 text-gray-500 font-mono">{u.contact_info || '-'}</td>
+                        <td className="py-3.5 px-4 text-right">
+                          <button 
+                            onClick={() => handleOpenEditUserModal(u)}
+                            className="bg-purple-50 text-secondary hover:bg-secondary hover:text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1"
+                          >
+                            <span className="material-symbols-outlined text-sm">edit</span>
+                            Edit Poin / Role
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 5. CRUD Categories */}
       {activeSubTab === 'categories' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 text-left items-start">
-          {/* Create/Edit Form */}
           <div className="bg-gray-50 border border-gray-100 p-6 rounded-2xl space-y-4">
             <h3 className="font-bold text-gray-900 text-base font-outfit">
               {editingCatId ? 'Edit Kategori' : 'Tambah Kategori Baru'}
@@ -336,7 +891,7 @@ const AdminDashboard = () => {
                 )}
                 <button 
                   type="submit" 
-                  className="flex-1 bg-secondary text-white font-bold py-2 rounded-xl text-xs hover:bg-secondary-container hover:text-primary transition-colors"
+                  className="flex-1 bg-secondary text-white font-bold py-2 rounded-xl text-xs hover:bg-secondary-container hover:text-primary transition-colors cursor-pointer"
                 >
                   {editingCatId ? 'Perbarui' : 'Simpan Kategori'}
                 </button>
@@ -344,7 +899,6 @@ const AdminDashboard = () => {
             </form>
           </div>
 
-          {/* List display */}
           <div className="lg:col-span-2 space-y-3">
             <h3 className="font-bold text-gray-900 text-base font-outfit border-b border-gray-50 pb-2">Daftar Kategori Terdaftar</h3>
             {categories.length === 0 ? (
@@ -371,10 +925,9 @@ const AdminDashboard = () => {
         </div>
       )}
 
-      {/* 3. CRUD Locations */}
+      {/* 6. CRUD Locations */}
       {activeSubTab === 'locations' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 text-left items-start">
-          {/* Create/Edit Form */}
           <div className="bg-gray-50 border border-gray-100 p-6 rounded-2xl space-y-4">
             <h3 className="font-bold text-gray-900 text-base font-outfit">
               {editingLocId ? 'Edit Lokasi' : 'Tambah Lokasi Baru'}
@@ -413,7 +966,7 @@ const AdminDashboard = () => {
                 )}
                 <button 
                   type="submit" 
-                  className="flex-1 bg-secondary text-white font-bold py-2 rounded-xl text-xs hover:bg-secondary-container hover:text-primary transition-colors"
+                  className="flex-1 bg-secondary text-white font-bold py-2 rounded-xl text-xs hover:bg-secondary-container hover:text-primary transition-colors cursor-pointer"
                 >
                   {editingLocId ? 'Perbarui' : 'Simpan Lokasi'}
                 </button>
@@ -421,7 +974,6 @@ const AdminDashboard = () => {
             </form>
           </div>
 
-          {/* List display */}
           <div className="lg:col-span-2 space-y-3">
             <h3 className="font-bold text-gray-900 text-base font-outfit border-b border-gray-50 pb-2">Daftar Lokasi Kampus</h3>
             {locations.length === 0 ? (
@@ -448,149 +1000,186 @@ const AdminDashboard = () => {
         </div>
       )}
 
-      {/* 4. Post Moderation */}
-      {activeSubTab === 'moderation' && (
-        <div className="text-left space-y-4">
-          <h3 className="font-bold text-gray-900 text-base font-outfit border-b border-gray-50 pb-2">Moderasi Seluruh Laporan Aktif</h3>
-          {allReports.length === 0 ? (
-            <p className="text-gray-500 text-sm">Tidak ada laporan terdaftar untuk saat ini.</p>
-          ) : (
-            <div className="space-y-4">
-              {allReports.map(item => (
-                <div key={item.id} className="p-5 border border-gray-100 rounded-2xl bg-white space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 pb-3">
-                    <div className="flex items-center gap-3">
-                      <StatusBadge status={item.status} />
-                      <span className={`px-2 py-0.5 text-[9px] font-black rounded-md text-white ${
-                        item.type === 'LOST' ? 'bg-red-500' : 'bg-blue-600'
-                      }`}>
-                        {item.type}
-                      </span>
-                      <h4 className="font-bold text-gray-900 text-sm font-outfit">{item.title}</h4>
-                    </div>
+      {/* --- MODALS --- */}
 
-                    <div className="flex items-center gap-2">
-                      <button 
-                        onClick={() => handleFetchAuditLogs(item)}
-                        className="bg-purple-50 text-secondary hover:bg-secondary hover:text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1"
-                      >
-                        <span className="material-symbols-outlined text-sm">history</span>
-                        Log Audit
-                      </button>
+      {/* Detail Laporan Modal */}
+      {detailItem && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 bg-black/40 backdrop-blur-xs" onClick={() => setDetailItem(null)}></div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
 
-                      {((item.type === 'FOUND' && item.status === 'IN_PROCESS') || 
-                        (item.type === 'LOST' && item.status === 'OPEN' && !item.storage_location)) && (
-                        <button 
-                          onClick={() => setTakeoverItem(item)}
-                          className="bg-amber-50 text-amber-700 hover:bg-amber-600 hover:text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1"
-                        >
-                          <span className="material-symbols-outlined text-sm">hail</span>
-                          Takeover Satpam
-                        </button>
-                      )}
+            <div className="inline-block align-bottom bg-white rounded-3xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full p-6 md:p-8 font-inter">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-4 mb-6">
+                <div className="flex items-center gap-2">
+                  <StatusBadge status={detailItem.status} />
+                  <span className={`px-2 py-0.5 text-[10px] font-black uppercase rounded-md text-white ${
+                    detailItem.type === 'LOST' ? 'bg-red-500' : 'bg-blue-600'
+                  }`}>
+                    {detailItem.type === 'LOST' ? 'HILANG' : 'TEMUAN'}
+                  </span>
+                </div>
+                <button onClick={() => setDetailItem(null)} className="text-gray-400 hover:text-gray-600">
+                  <span className="material-symbols-outlined text-2xl">close</span>
+                </button>
+              </div>
 
-                      <button 
-                        onClick={() => handleDeleteReport(item.id)}
-                        className="bg-red-50 text-red-600 hover:bg-red-600 hover:text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
-                      >
-                        Hapus
-                      </button>
-                    </div>
+              <div className="space-y-6">
+                {/* Image & Main Info */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                  <div className="rounded-2xl overflow-hidden bg-gray-50 border border-gray-100 max-h-[240px]">
+                    <ImageFallback src={detailItem.image_url} alt={detailItem.title} className="w-full h-full object-contain" />
                   </div>
+                  <div className="space-y-3 text-xs">
+                    <h3 className="font-black text-gray-900 text-lg font-outfit leading-snug">{detailItem.title}</h3>
+                    
+                    <div className="p-3 bg-gray-50 rounded-xl space-y-2">
+                      <div className="flex justify-between border-b border-gray-200/60 pb-1.5">
+                        <span className="text-gray-400 font-bold uppercase">Kategori</span>
+                        <span className="font-semibold text-gray-800">{detailItem.category?.name}</span>
+                      </div>
+                      <div className="flex justify-between border-b border-gray-200/60 pb-1.5">
+                        <span className="text-gray-400 font-bold uppercase">Lokasi Kampus</span>
+                        <span className="font-semibold text-gray-800">{detailItem.location?.name}</span>
+                      </div>
+                      <div className="flex justify-between border-b border-gray-200/60 pb-1.5">
+                        <span className="text-gray-400 font-bold uppercase">Loker Fisik Satpam</span>
+                        <span className="font-bold text-purple-800">{detailItem.storage_location || 'Belum Dititipkan'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400 font-bold uppercase">Pelapor</span>
+                        <span className="font-semibold text-gray-900">{detailItem.user?.name}</span>
+                      </div>
+                    </div>
 
-                  {/* Body information cards */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-                    <div>
-                      <p className="text-gray-400 uppercase font-bold tracking-wider">Ciri Rahasia</p>
-                      <p className="text-gray-800 font-semibold mt-1">"{item.secret_feature || '-'}"</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400 uppercase font-bold tracking-wider">Lokasi Kampus</p>
-                      <p className="text-gray-800 font-semibold mt-1">{item.location?.name}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400 uppercase font-bold tracking-wider">Lokasi Penyimpanan Fisik</p>
-                      <p className="text-purple-800 font-bold mt-1">{item.storage_location || 'Belum Dititipkan'}</p>
-                    </div>
+                    <p className="text-[10px] text-gray-400 font-semibold">
+                      Dilaporkan pada: {new Date(detailItem.created_at).toLocaleString('id-ID')}
+                    </p>
                   </div>
                 </div>
-              ))}
+
+                {/* Secret Feature */}
+                <div className="p-4 bg-purple-50 border border-purple-100 rounded-2xl text-xs space-y-1">
+                  <h4 className="font-bold text-purple-900 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-lg select-none">visibility</span>
+                    Ciri Rahasia Barang (Hanya Satpam & Pemilik)
+                  </h4>
+                  <p className="text-purple-700 leading-relaxed font-semibold">
+                    "{detailItem.secret_feature}"
+                  </p>
+                </div>
+
+                {/* Description */}
+                <div className="space-y-1.5 text-xs">
+                  <h4 className="font-bold text-gray-900">Deskripsi Kronologi Laporan</h4>
+                  <p className="text-gray-600 bg-gray-50 border border-gray-100 p-3.5 rounded-xl leading-relaxed">
+                    {detailItem.description}
+                  </p>
+                </div>
+
+                {/* Actions Footer */}
+                <div className="pt-4 border-t border-gray-100 flex flex-wrap justify-between gap-2">
+                  <button 
+                    onClick={() => handleFetchAuditLogs(detailItem)}
+                    className="bg-purple-50 text-secondary hover:bg-secondary hover:text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-sm">history</span>
+                    Lihat Log Audit
+                  </button>
+
+                  <div className="flex gap-2">
+                    {((detailItem.type === 'FOUND' && detailItem.status === 'IN_PROCESS') || 
+                      (detailItem.type === 'LOST' && detailItem.status === 'OPEN' && !detailItem.storage_location)) && (
+                      <button 
+                        onClick={() => { setTakeoverItem(detailItem); }}
+                        className="bg-amber-50 text-amber-700 hover:bg-amber-600 hover:text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-sm">hail</span>
+                        Takeover Satpam
+                      </button>
+                    )}
+
+                    <button 
+                      onClick={() => handleDeleteReport(detailItem.id)}
+                      className="bg-red-50 text-red-600 hover:bg-red-600 hover:text-white px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                    >
+                      Hapus Postingan
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
-          )}
+          </div>
         </div>
       )}
 
-      {/* 5. Claim Approvals Panel */}
-      {activeSubTab === 'claims' && (
-        <div className="text-left space-y-4">
-          <h3 className="font-bold text-gray-900 text-base font-outfit border-b border-gray-50 pb-2">Persetujuan Klaim Masuk (Satpam)</h3>
-          {incomingClaims.length === 0 ? (
-            <p className="text-gray-500 text-sm">Belum ada pengajuan klaim barang untuk saat ini.</p>
-          ) : (
-            <div className="space-y-4">
-              {incomingClaims.map(claim => (
-                <div key={claim.id} className="p-5 border border-gray-100 rounded-2xl bg-gray-50/30 space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 pb-2">
-                    <div>
-                      <p className="text-[10px] text-gray-400 font-bold uppercase">Nama Barang</p>
-                      <h4 className="font-bold text-gray-900 text-sm font-outfit">{claim.item?.title}</h4>
-                    </div>
-                    <span className="text-[10px] text-gray-400 font-semibold">{new Date(claim.created_at).toLocaleDateString()}</span>
-                  </div>
+      {/* Edit User Modal (Poin Reputasi & Role) */}
+      {editingUser && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 bg-black/40 backdrop-blur-xs" onClick={() => setEditingUser(null)}></div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="text-xs space-y-2">
-                      <p className="font-bold text-gray-500">Pengklaim: <span className="text-gray-900">{claim.claimer?.name} ({claim.claimer?.email})</span></p>
-                      <p className="text-gray-400 font-bold uppercase mt-2">Ciri Rahasia (Sebenarnya):</p>
-                      <p className="text-purple-900 font-bold bg-purple-50 p-2 rounded-lg">"{claim.item?.secret_feature}"</p>
-                      
-                      <p className="text-gray-400 font-bold uppercase mt-2">Deskripsi Bukti Pengklaim:</p>
-                      <p className="text-gray-800 bg-white border border-gray-100 p-3 rounded-lg leading-relaxed">
-                        "{claim.proof_description}"
-                      </p>
-                    </div>
-
-                    {/* Claim Proof Image if any */}
-                    {claim.proof_image_url && (
-                      <div>
-                        <p className="text-[10px] text-gray-400 font-bold uppercase mb-2">Foto Bukti Fisik Pengklaim</p>
-                        <img 
-                          src={claim.proof_image_url} 
-                          alt="Bukti Klaim" 
-                          className="h-32 object-contain rounded-xl border border-gray-200"
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  {claim.status === 'PENDING' ? (
-                    <div className="flex justify-end gap-2 pt-2 border-t border-gray-50">
-                      <button 
-                        onClick={() => handleResolveClaim(claim.id, 'REJECTED')}
-                        className="bg-red-50 hover:bg-red-600 hover:text-white text-red-600 text-xs font-bold px-4 py-2 rounded-xl transition-all"
-                      >
-                        Tolak Klaim
-                      </button>
-                      <button 
-                        onClick={() => handleResolveClaim(claim.id, 'APPROVED')}
-                        className="bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-700 text-xs font-bold px-4 py-2 rounded-xl transition-all"
-                      >
-                        Setujui Klaim
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="text-right border-t border-gray-50 pt-2">
-                      <span className={`text-xs font-bold uppercase inline-block ${
-                        claim.status === 'APPROVED' ? 'text-emerald-600' : 'text-red-500'
-                      }`}>
-                        Status Keputusan: {claim.status}
-                      </span>
-                    </div>
-                  )}
+            <div className="inline-block align-bottom bg-white rounded-3xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full p-8 font-inter">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-4 mb-6">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 font-outfit">Edit Poin & Role Pengguna</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">{editingUser.name} ({editingUser.email})</p>
                 </div>
-              ))}
+                <button onClick={() => setEditingUser(null)} className="text-gray-400 hover:text-gray-600">
+                  <span className="material-symbols-outlined text-2xl">close</span>
+                </button>
+              </div>
+
+              <form onSubmit={handleUpdateUserSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Poin Reputasi (Trust Score)</label>
+                  <div className="relative">
+                    <span className="material-symbols-outlined absolute left-3 top-2.5 text-amber-500 text-lg">stars</span>
+                    <input 
+                      type="number" 
+                      min="0"
+                      required
+                      value={newTrustScore}
+                      onChange={(e) => setNewTrustScore(e.target.value)}
+                      className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold focus:bg-white focus:border-secondary focus:outline-none"
+                    />
+                  </div>
+                  <span className="text-[10px] text-gray-400 mt-1 block">
+                    Level Badges: <b>0-24</b> (Standard User), <b>25-49</b> (Silver Reporter), <b>50+</b> (Gold Honest)
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Hak Akses Role</label>
+                  <select 
+                    value={newRole}
+                    onChange={(e) => setNewRole(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold focus:bg-white focus:border-secondary focus:outline-none"
+                  >
+                    <option value="USER">USER (Mahasiswa / Dosen / Staf)</option>
+                    <option value="ADMIN">ADMIN (Satpam / Pengelola Moderasi)</option>
+                  </select>
+                </div>
+
+                <div className="pt-4 flex justify-end gap-2 border-t border-gray-100">
+                  <button 
+                    type="button" 
+                    onClick={() => setEditingUser(null)}
+                    className="px-5 py-2.5 border border-gray-200 text-gray-500 rounded-xl text-xs font-bold hover:bg-gray-50"
+                  >
+                    Batal
+                  </button>
+                  <button 
+                    type="submit" 
+                    className="bg-secondary text-white font-bold px-6 py-2.5 rounded-xl transition-all shadow-md text-xs cursor-pointer"
+                  >
+                    Simpan Perubahan
+                  </button>
+                </div>
+              </form>
             </div>
-          )}
+          </div>
         </div>
       )}
 
@@ -697,7 +1286,7 @@ const AdminDashboard = () => {
                   </button>
                   <button 
                     type="submit" 
-                    className="bg-secondary text-white font-bold px-6 py-2.5 rounded-xl transition-all shadow-md text-xs"
+                    className="bg-secondary text-white font-bold px-6 py-2.5 rounded-xl transition-all shadow-md text-xs cursor-pointer"
                   >
                     Konfirmasi Takeover
                   </button>
