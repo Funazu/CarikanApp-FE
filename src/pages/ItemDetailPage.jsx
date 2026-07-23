@@ -184,7 +184,7 @@ const ItemDetailPage = () => {
             </p>
           </div>
 
-          {/* Secret Feature Protection card */}
+          {/* Secret Feature Protection card (Untuk Barang TEMUAN) */}
           {(isOwner || isAdmin) ? (
             <div className="p-4 bg-purple-50 border border-purple-100 rounded-2xl text-xs space-y-2">
               <h4 className="font-bold text-purple-900 flex items-center gap-1">
@@ -195,24 +195,54 @@ const ItemDetailPage = () => {
                 "{item.secret_feature}"
               </p>
             </div>
-          ) : (
+          ) : item.type === 'FOUND' ? (
             <div className="p-4 bg-gray-50 border border-gray-100 rounded-2xl text-xs flex items-start gap-2.5">
               <span className="material-symbols-outlined text-gray-400 text-xl mt-0.5 select-none">lock</span>
               <div className="text-gray-500 leading-normal">
                 <span className="font-bold text-gray-700">Ciri Rahasia Disembunyikan:</span> Untuk mengklaim kepemilikan barang ini, Anda wajib mengajukan klaim dan menjelaskan ciri rahasia secara akurat untuk divalidasi oleh Satpam.
               </div>
             </div>
-          )}
+          ) : null}
 
-          {/* Action Button: Claim Item */}
-          {!isOwner && item.status === 'OPEN' && (
+          {/* Action Button: Claim Item (Hanya untuk Barang TEMUAN) */}
+          {!isOwner && item.type === 'FOUND' && item.status === 'OPEN' && (
             <button 
               onClick={() => user ? setIsClaimModalOpen(true) : navigate('/login')}
-              className="w-full bg-secondary hover:bg-secondary-container hover:text-primary text-white font-bold py-3.5 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 text-sm"
+              className="w-full bg-secondary hover:bg-secondary-container hover:text-primary text-white font-bold py-3.5 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 text-sm cursor-pointer"
             >
               <span className="material-symbols-outlined text-lg">workspace_premium</span>
-              Klaim Barang Ini
+              Klaim Kepemilikan Barang Ini
             </button>
+          )}
+
+          {/* Action Box: Kontak Pelapor (Hanya untuk Barang HILANG) */}
+          {!isOwner && item.type === 'LOST' && item.status === 'OPEN' && (
+            <div className="p-5 bg-blue-50/80 border border-blue-100 rounded-2xl space-y-3 text-xs">
+              <h4 className="font-bold text-blue-900 flex items-center gap-1.5 text-sm font-outfit">
+                <span className="material-symbols-outlined text-xl text-blue-600">contact_phone</span>
+                Menemukan Barang Ini? Hubungi Pelapor Kehilangan
+              </h4>
+              <p className="text-blue-700 leading-relaxed">
+                Jika Anda menemukan barang ini atau memiliki informasi terkait keberadaannya, silakan hubungi pemilik langsung melalui:
+              </p>
+              <div className="p-3.5 bg-white border border-blue-100 rounded-xl font-bold text-blue-900 text-sm flex items-center justify-between shadow-2xs">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-gray-400 text-lg">call</span>
+                  <span>{item.contact_info || item.user?.contact_info || 'Kontak tidak tersedia'}</span>
+                </div>
+                {((item.contact_info || item.user?.contact_info || '').replace(/[^0-9]/g, '').length >= 9) && (
+                  <a 
+                    href={`https://wa.me/${(item.contact_info || item.user?.contact_info).replace(/[^0-9]/g, '')}`} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="px-3.5 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition-colors flex items-center gap-1 shadow-xs"
+                  >
+                    <span className="material-symbols-outlined text-base">chat</span>
+                    Hubungi via WA
+                  </a>
+                )}
+              </div>
+            </div>
           )}
 
           {item.status !== 'OPEN' && (

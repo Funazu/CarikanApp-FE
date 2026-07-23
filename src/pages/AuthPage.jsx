@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
 const AuthPage = () => {
-  const { login, register, user } = useAuth();
+  const { login, loginWithGoogle, register, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useToast();
+  const googleBtnRef = useRef(null);
 
   const [isLogin, setIsLogin] = useState(true);
   const [name, setName] = useState('');
@@ -27,6 +28,73 @@ const AuthPage = () => {
       navigate('/dashboard');
     }
   }, [user, navigate]);
+
+  // Google Identity Services (GIS) integration
+  useEffect(() => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!clientId) return;
+
+    const handleGoogleResponse = async (response) => {
+      if (!response.credential) return;
+      setLoading(true);
+      setSubmitError('');
+      try {
+        await loginWithGoogle(response.credential);
+        showToast('Login Google SSO Berhasil!', 'success');
+        navigate('/dashboard');
+      } catch (err) {
+        console.error(err);
+        const msg = err.response?.data?.message || 'Otentikasi Google gagal.';
+        setSubmitError(msg);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const initGoogleSDK = () => {
+      if (window.google?.accounts?.id) {
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: handleGoogleResponse,
+        });
+
+        if (googleBtnRef.current) {
+          googleBtnRef.current.innerHTML = '';
+          window.google.accounts.id.renderButton(
+            googleBtnRef.current,
+            { 
+              theme: 'outline', 
+              size: 'large', 
+              width: '360',
+              text: 'continue_with',
+              shape: 'rectangular',
+              locale: 'id'
+            }
+          );
+        }
+      }
+    };
+
+    if (!window.google?.accounts?.id) {
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.defer = true;
+      script.onload = initGoogleSDK;
+      document.body.appendChild(script);
+    } else {
+      initGoogleSDK();
+    }
+  }, [loginWithGoogle, navigate, showToast]);
+
+  const handleGoogleAuthClick = () => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (clientId && window.google?.accounts?.id) {
+      window.google.accounts.id.prompt();
+    } else {
+      showToast('Integrasi Google SSO Aktif! Tambahkan VITE_GOOGLE_CLIENT_ID di file .env frontend untuk menghubungkan Client ID Google Console Anda.', 'info');
+    }
+  };
 
   // Instant domain gate validation
   const validateEmailDomain = (value) => {
@@ -208,21 +276,14 @@ const AuthPage = () => {
           </button>
         </form>
 
-        {/* Mock Google SSO Login */}
-        <div className="mt-6 pt-6 border-t border-gray-100">
-          <button 
-            type="button"
-            onClick={() => showToast('Integrasi Google SSO: Fitur visual simulasi mock.', 'success')}
-            className="w-full border border-gray-200 text-gray-700 hover:bg-gray-50 font-semibold py-3 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 text-sm shadow-xs"
-          >
-            <svg className="w-5 h-5" viewBox="0 0 24 24">
-              <path fill="#EA4335" d="M12 5.04c1.67 0 3.19.57 4.38 1.69l3.27-3.27C17.68 1.54 15.02 1 12 1 7.35 1 3.4 3.65 1.5 7.5l3.86 3C6.27 7.77 8.93 5.04 12 5.04z"/>
-              <path fill="#4285F4" d="M23.49 12.27c0-.82-.07-1.6-.22-2.36H12v4.51h6.44c-.28 1.47-1.11 2.71-2.36 3.55l3.68 2.85c2.15-1.98 3.39-4.9 3.39-8.55z"/>
-              <path fill="#FBBC05" d="M5.36 14.5c-.24-.71-.38-1.47-.38-2.25s.14-1.54.38-2.25L1.5 7.5C.54 9.4 0 11.53 0 13.75s.54 4.35 1.5 6.25l3.86-3z"/>
-              <path fill="#34A853" d="M12 23c3.24 0 5.97-1.07 7.96-2.91l-3.68-2.85c-1.02.68-2.33 1.09-3.95 1.09-3.07 0-5.73-2.73-6.64-5.46l-3.86 3C3.4 20.35 7.35 23 12 23z"/>
-            </svg>
-            Masuk dengan Google SSO
-          </button>
+        {/* Google SSO Login Container */}
+        <div className="mt-6 pt-6 border-t border-gray-100 flex flex-col items-center">
+          <div ref={googleBtnRef} className="w-full flex justify-center min-h-[44px]"></div>
+          {!import.meta.env.VITE_GOOGLE_CLIENT_ID && (
+            <p className="text-[10px] text-gray-400 mt-2 text-center">
+              Tambahkan VITE_GOOGLE_CLIENT_ID di file .env frontend untuk menghubungkan Client ID Google.
+            </p>
+          )}
         </div>
 
         {/* Toggle link */}
