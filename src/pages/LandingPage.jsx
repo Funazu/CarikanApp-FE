@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import api from '../services/api';
 import StatusBadge from '../components/StatusBadge';
 import ImageFallback from '../components/ImageFallback';
+import ErrorCountdownCard from '../components/ErrorCountdownCard';
 
 const LandingPage = () => {
   const [items, setItems] = useState([]);
@@ -23,6 +24,8 @@ const LandingPage = () => {
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState('');
+  const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
 
   // Fetch static drops
   useEffect(() => {
@@ -44,6 +47,7 @@ const LandingPage = () => {
   // Fetch items based on filters
   const fetchItems = async () => {
     setLoading(true);
+    setFetchError('');
     try {
       const params = {
         page,
@@ -63,6 +67,9 @@ const LandingPage = () => {
       setLastPage(res.data.last_page || 1);
     } catch (err) {
       console.error('Failed to load items', err);
+      const seconds = err.response?.data?.retry_after_seconds || parseInt(err.response?.headers?.['retry-after'] || 0, 10);
+      setRetryAfterSeconds(seconds || 0);
+      setFetchError(err.response?.data?.message || 'Gagal memuat daftar laporan barang.');
     } finally {
       setLoading(false);
     }
@@ -280,6 +287,13 @@ const LandingPage = () => {
             </div>
           ))}
         </div>
+      ) : fetchError ? (
+        <ErrorCountdownCard 
+          message={fetchError}
+          retryAfter={retryAfterSeconds}
+          onRetry={fetchItems}
+          title="Gagal Memuat Laporan Barang"
+        />
       ) : items.length === 0 ? (
         <div className="bg-white border border-gray-100 rounded-2xl p-16 text-center shadow-xs">
           <span className="material-symbols-outlined text-gray-300 text-7xl mb-4 select-none">travel_explore</span>

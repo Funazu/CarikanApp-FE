@@ -6,17 +6,32 @@ export const ToastProvider = ({ children }) => {
   const [toasts, setToasts] = useState([]);
 
   const showToast = useCallback((message, type = 'success', duration = 3500) => {
-    const id = Date.now() + Math.random().toString(36).substring(2, 9);
-    setToasts((prev) => [...prev, { id, message, type }]);
-
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((toast) => toast.id !== id));
-    }, duration);
+    setToasts((prev) => {
+      // Anti-Spam / Deduplication: Abaikan jika pesan toast yang sama sedang aktif
+      if (prev.some((t) => t.message === message)) {
+        return prev;
+      }
+      const id = Date.now() + Math.random().toString(36).substring(2, 9);
+      setTimeout(() => {
+        setToasts((active) => active.filter((toast) => toast.id !== id));
+      }, duration);
+      return [...prev, { id, message, type }];
+    });
   }, []);
 
   const removeToast = (id) => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
   };
+
+  React.useEffect(() => {
+    const handleGlobalToast = (e) => {
+      if (e.detail && e.detail.message) {
+        showToast(e.detail.message, e.detail.type || 'error', e.detail.duration || 4000);
+      }
+    };
+    window.addEventListener('app-toast', handleGlobalToast);
+    return () => window.removeEventListener('app-toast', handleGlobalToast);
+  }, [showToast]);
 
   return (
     <ToastContext.Provider value={{ showToast }}>

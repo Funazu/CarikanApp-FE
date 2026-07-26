@@ -60,6 +60,30 @@ api.interceptors.response.use(
         }
       }
     }
+    // Handle 429 Too Many Requests Rate Limiting
+    if (error.response && error.response.status === 429) {
+      const retryAfter = error.response.headers?.['retry-after'] || error.response.data?.retry_after_seconds || 60;
+      const customMsg = error.response.data?.message || `Terlalu banyak permintaan! Demi stabilitas server, silakan tunggu ${retryAfter} detik sebelum mencoba lagi.`;
+      
+      if (typeof error.response.data !== 'object' || !error.response.data) {
+        error.response.data = {};
+      }
+      error.response.data.message = customMsg;
+
+      // Trigger automatic Toast feedback to user on any page (Throttled 2.5 seconds to prevent spam)
+      const now = Date.now();
+      if (typeof window !== 'undefined' && (!window._last429Toast || now - window._last429Toast > 2500)) {
+        window._last429Toast = now;
+        window.dispatchEvent(new CustomEvent('app-toast', {
+          detail: { 
+            message: customMsg, 
+            type: 'error', 
+            duration: 3500
+          }
+        }));
+      }
+    }
+
     return Promise.reject(error);
   }
 );

@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import api from '../services/api';
 import StatusBadge from '../components/StatusBadge';
 import ImageFallback from '../components/ImageFallback';
+import ErrorCountdownCard from '../components/ErrorCountdownCard';
+import ItemDetailModal from '../components/ItemDetailModal';
 
 const StudentDashboard = () => {
   const { user, updateProfile } = useAuth();
@@ -39,9 +41,20 @@ const StudentDashboard = () => {
   const [profileAvatar, setProfileAvatar] = useState(null);
   const [profileAvatarPreview, setProfileAvatarPreview] = useState(user?.avatar_url || null);
 
+  // Change password state
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [tabFetchError, setTabFetchError] = useState('');
+  const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
+  const [selectedDetailItemId, setSelectedDetailItemId] = useState(null);
 
   // Fetch dropdown metadata
   useEffect(() => {
@@ -73,6 +86,7 @@ const StudentDashboard = () => {
   // Fetch dashboard tab data
   const fetchTabData = async () => {
     if (!user) return;
+    setTabFetchError('');
     try {
       if (activeTab === 'summary') {
         const [itemsRes, claimsRes, notifRes] = await Promise.all([
@@ -80,7 +94,6 @@ const StudentDashboard = () => {
           api.get('/claims/outgoing'),
           api.get('/notifications')
         ]);
-        // filter items owned by me (backend index route gets all paginated, let's filter or let backend return it. Wait, the backend has GET /items where we can filter or index. Actually, to get only my items, let's filter from all or let's fetch. Wait, does backend index return everything? Yes. Let's filter client-side for user_id, or let's check! Wait, client-side filtering is fine since the test is local. Let's filter `item.user_id === user.id`).
         setMyItems(itemsRes.data.data.filter(item => item.user_id === user.id));
         setMyClaims(claimsRes.data);
         setNotifications(notifRes.data);
@@ -96,6 +109,10 @@ const StudentDashboard = () => {
       }
     } catch (err) {
       console.error(err);
+      const seconds = err.response?.data?.retry_after_seconds || parseInt(err.response?.headers?.['retry-after'] || 0, 10);
+      setRetryAfterSeconds(seconds || 0);
+      const msg = err.response?.data?.message || 'Gagal memuat data dashboard.';
+      setTabFetchError(msg);
     }
   };
 
@@ -208,6 +225,44 @@ const StudentDashboard = () => {
       setErrorMsg('Gagal memperbarui profil.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Change password submit
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setPasswordError('');
+    setPasswordSuccess('');
+
+    if (newPassword !== newPasswordConfirm) {
+      setPasswordError('Konfirmasi kata sandi baru tidak cocok.');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setPasswordError('Kata sandi baru minimal 6 karakter.');
+      return;
+    }
+
+    setPasswordLoading(true);
+    try {
+      const res = await api.put('/users/change-password', {
+        current_password: currentPassword,
+        new_password: newPassword,
+        new_password_confirmation: newPasswordConfirm
+      });
+      setPasswordSuccess(res.data.message || 'Kata sandi berhasil diperbarui.');
+      showToast('Kata sandi berhasil diperbarui!', 'success');
+      setCurrentPassword('');
+      setNewPassword('');
+      setNewPasswordConfirm('');
+    } catch (err) {
+      console.error(err);
+      const msg = err.response?.data?.message || err.response?.data?.errors?.new_password?.[0] || 'Gagal mengubah kata sandi.';
+      setPasswordError(msg);
+      showToast(msg, 'error');
+    } finally {
+      setPasswordLoading(false);
     }
   };
 
@@ -354,9 +409,18 @@ const StudentDashboard = () => {
         {/* Right Side Content Panel */}
         <div className="lg:col-span-3 bg-white border border-gray-100 rounded-3xl p-6 md:p-8 shadow-sm">
           
-          {/* Tab 1: Summary */}
-          {activeTab === 'summary' && (
-            <div className="space-y-8 text-left">
+          {tabFetchError ? (
+            <ErrorCountdownCard 
+              message={tabFetchError}
+              retryAfter={retryAfterSeconds}
+              onRetry={fetchTabData}
+              title="Gagal Memuat Data Dashboard"
+            />
+          ) : (
+            <>
+              {/* Tab 1: Summary */}
+              {activeTab === 'summary' && (
+                <div className="space-y-8 text-left">
               {/* Profile Card & Medalled Trust Score */}
               <div className="p-6 bg-gradient-to-r from-purple-50 to-indigo-50/30 border border-purple-100/50 rounded-2xl flex flex-wrap items-center justify-between gap-6">
                 <div className="flex items-center gap-4">
@@ -434,11 +498,19 @@ const StudentDashboard = () => {
                       </div>
 
                       <div className="flex items-center gap-2">
-
+                        <button 
+                          type="button"
+                          onClick={() => setSelectedDetailItemId(item.id)}
+                          className="bg-purple-50 text-secondary hover:bg-secondary hover:text-white px-3 py-2 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-base select-none">visibility</span>
+                          Detail Barang
+                        </button>
                         
                         <button 
                           onClick={() => handleDeleteItem(item.id)}
                           className="bg-red-50 text-red-600 hover:bg-red-600 hover:text-white p-2 rounded-xl transition-all"
+                          title="Hapus Laporan"
                         >
                           <span className="material-symbols-outlined text-lg">delete</span>
                         </button>
@@ -469,7 +541,18 @@ const StudentDashboard = () => {
                         <p className="text-xs text-gray-500 mt-1 line-clamp-1">Bukti: {claim.proof_description}</p>
                       </div>
 
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        {(claim.item_id || claim.item?.id) && (
+                          <button 
+                            type="button"
+                            onClick={() => setSelectedDetailItemId(claim.item_id || claim.item?.id)}
+                            className="bg-purple-50 text-secondary hover:bg-secondary hover:text-white px-3 py-2 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <span className="material-symbols-outlined text-base select-none">visibility</span>
+                            Detail Barang
+                          </button>
+                        )}
+
                         <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${
                           claim.status === 'APPROVED' 
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
@@ -500,63 +583,225 @@ const StudentDashboard = () => {
           {/* Tab 5: Settings */}
           {activeTab === 'settings' && (
             <div className="text-left space-y-6">
-              <h3 className="text-xl font-bold font-outfit text-gray-900 border-b border-gray-50 pb-3">Ubah Profil & Kontak</h3>
               
-              <form onSubmit={handleUpdateProfile} className="space-y-4 max-w-lg">
-                <div className="flex items-center gap-4 mb-6">
-                  {profileAvatarPreview ? (
-                    <img src={profileAvatarPreview} alt="Avatar" className="w-16 h-16 rounded-full object-cover border border-purple-200" />
-                  ) : (
-                    <div className="w-16 h-16 rounded-full bg-secondary text-white font-bold text-2xl flex items-center justify-center uppercase font-outfit">
-                      {user?.name.charAt(0)}
-                    </div>
-                  )}
+              {/* Header Title */}
+              <div className="border-b border-gray-100 pb-4">
+                <h3 className="text-xl font-bold font-outfit text-gray-900">Pengaturan Akun & Keamanan</h3>
+                <p className="text-xs text-gray-500 mt-1">Kelola foto profil, identitas pengguna, kontak WhatsApp, dan kata sandi akun Anda.</p>
+              </div>
+
+              {/* Top Card: Profile Banner & Avatar Uploader */}
+              <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-6">
+                <div className="flex items-center gap-5">
+                  <div className="relative">
+                    {profileAvatarPreview ? (
+                      <img src={profileAvatarPreview} alt="Avatar" className="w-20 h-20 rounded-2xl object-cover border-2 border-purple-200 shadow-xs" />
+                    ) : (
+                      <div className="w-20 h-20 rounded-2xl bg-secondary text-white font-bold text-3xl flex items-center justify-center uppercase font-outfit shadow-xs">
+                        {user?.name.charAt(0)}
+                      </div>
+                    )}
+                  </div>
                   <div>
-                    <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Foto Profil</label>
-                    <input 
-                      type="file" 
-                      onChange={handleAvatarChange}
-                      className="text-xs text-gray-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-purple-50 file:text-secondary hover:file:bg-purple-100"
-                    />
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-lg font-bold font-outfit text-gray-900">{user?.name}</h4>
+                      <span className="bg-purple-50 text-secondary text-[10px] font-extrabold px-2 py-0.5 rounded-md uppercase tracking-wider">
+                        {user?.role}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 font-mono mt-0.5">{user?.email}</p>
+                    <p className="text-[11px] text-emerald-600 font-semibold mt-1 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-sm">verified</span>
+                      Akun Resmi Terverifikasi Amikom
+                    </p>
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Nama Lengkap</label>
-                  <input 
-                    type="text"
-                    required
-                    value={profileName}
-                    onChange={(e) => setProfileName(e.target.value)}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-secondary focus:ring-1 focus:ring-secondary focus:outline-none transition-all-200"
-                  />
+                <div className="w-full sm:w-auto">
+                  <label className="cursor-pointer bg-purple-50 hover:bg-purple-100 text-secondary font-bold px-4 py-2.5 rounded-xl text-xs transition-all inline-flex items-center justify-center gap-2 border border-purple-100/80 w-full sm:w-auto">
+                    <span className="material-symbols-outlined text-base">photo_camera</span>
+                    <span>Pilih Foto Profil Baru</span>
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      onChange={handleAvatarChange}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* 2-Column Symmetrical Grid Cards */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+
+                {/* Card 1: Profil & Informasi Kontak (3 Inputs) */}
+                <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-xs flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center gap-3 border-b border-gray-100 pb-4 mb-6">
+                      <div className="w-10 h-10 rounded-2xl bg-purple-50 text-secondary flex items-center justify-center">
+                        <span className="material-symbols-outlined text-xl select-none">person</span>
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-gray-900 font-outfit text-base">Informasi Profil</h4>
+                        <p className="text-xs text-gray-400">Update identitas dan kontak aktif Anda</p>
+                      </div>
+                    </div>
+
+                    <form onSubmit={handleUpdateProfile} id="profileForm" className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Nama Lengkap</label>
+                        <input 
+                          type="text"
+                          required
+                          value={profileName}
+                          onChange={(e) => setProfileName(e.target.value)}
+                          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-secondary focus:ring-1 focus:ring-secondary focus:outline-none transition-all-200"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Email Kampus (Satu Arah)</label>
+                        <input 
+                          type="email"
+                          disabled
+                          value={user?.email || ''}
+                          className="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-xl text-sm text-gray-500 cursor-not-allowed font-mono"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">No. WhatsApp Aktif</label>
+                        <input 
+                          type="text"
+                          required
+                          value={profileContact}
+                          onChange={(e) => setProfileContact(e.target.value)}
+                          placeholder="Contoh: 081234567890"
+                          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-secondary focus:ring-1 focus:ring-secondary focus:outline-none transition-all-200"
+                        />
+                      </div>
+                    </form>
+                  </div>
+
+                  <div className="pt-6 border-t border-gray-50 mt-4">
+                    <button 
+                      type="submit"
+                      form="profileForm"
+                      disabled={loading}
+                      className="w-full bg-secondary hover:bg-secondary-container hover:text-primary text-white font-bold px-6 py-3 rounded-xl transition-all shadow-md inline-flex items-center justify-center gap-2 text-sm disabled:opacity-50"
+                    >
+                      {loading ? (
+                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                      ) : (
+                        <span className="material-symbols-outlined text-lg select-none">save</span>
+                      )}
+                      Simpan Profil
+                    </button>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-gray-400 uppercase mb-2">No. WhatsApp Aktif</label>
-                  <input 
-                    type="text"
-                    required
-                    value={profileContact}
-                    onChange={(e) => setProfileContact(e.target.value)}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-secondary focus:ring-1 focus:ring-secondary focus:outline-none transition-all-200"
-                  />
+                {/* Card 2: Keamanan Kata Sandi (3 Inputs) */}
+                <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-xs flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center gap-3 border-b border-gray-100 pb-4 mb-6">
+                      <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                        <span className="material-symbols-outlined text-xl select-none">lock_reset</span>
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-gray-900 font-outfit text-base">Keamanan Kata Sandi</h4>
+                        <p className="text-xs text-gray-400">Perbarui kata sandi secara berkala</p>
+                      </div>
+                    </div>
+
+                    {passwordError && (
+                      <div className="p-3 mb-3 text-xs font-semibold text-red-600 bg-red-50 border border-red-100 rounded-xl flex items-center gap-2">
+                        <span className="material-symbols-outlined text-base select-none">error</span>
+                        <span>{passwordError}</span>
+                      </div>
+                    )}
+
+                    {passwordSuccess && (
+                      <div className="p-3 mb-3 text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center gap-2">
+                        <span className="material-symbols-outlined text-base select-none">check_circle</span>
+                        <span>{passwordSuccess}</span>
+                      </div>
+                    )}
+
+                    <form onSubmit={handleChangePassword} id="passwordForm" className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Kata Sandi Saat Ini</label>
+                        <input 
+                          type="password"
+                          required
+                          value={currentPassword}
+                          onChange={(e) => setCurrentPassword(e.target.value)}
+                          placeholder="Masukkan kata sandi lama Anda"
+                          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-secondary focus:ring-1 focus:ring-secondary focus:outline-none transition-all-200"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Kata Sandi Baru</label>
+                        <input 
+                          type="password"
+                          required
+                          minLength={6}
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="Minimal 6 karakter"
+                          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-secondary focus:ring-1 focus:ring-secondary focus:outline-none transition-all-200"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Konfirmasi Kata Sandi Baru</label>
+                        <input 
+                          type="password"
+                          required
+                          minLength={6}
+                          value={newPasswordConfirm}
+                          onChange={(e) => setNewPasswordConfirm(e.target.value)}
+                          placeholder="Ulangi kata sandi baru Anda"
+                          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-secondary focus:ring-1 focus:ring-secondary focus:outline-none transition-all-200"
+                        />
+                      </div>
+                    </form>
+                  </div>
+
+                  <div className="pt-6 border-t border-gray-50 mt-4">
+                    <button 
+                      type="submit"
+                      form="passwordForm"
+                      disabled={passwordLoading}
+                      className="w-full bg-secondary hover:bg-secondary-container hover:text-primary text-white font-bold px-6 py-3 rounded-xl transition-all shadow-md inline-flex items-center justify-center gap-2 text-sm disabled:opacity-50"
+                    >
+                      {passwordLoading ? (
+                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                      ) : (
+                        <span className="material-symbols-outlined text-lg select-none">key</span>
+                      )}
+                      Ubah Kata Sandi
+                    </button>
+                  </div>
                 </div>
 
-                <button 
-                  type="submit"
-                  disabled={loading}
-                  className="bg-secondary hover:bg-secondary-container hover:text-primary text-white font-bold px-6 py-3 rounded-xl transition-all shadow-md inline-flex items-center gap-2 text-sm disabled:opacity-50"
-                >
-                  {loading && <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>}
-                  Simpan Perubahan
-                </button>
-              </form>
+              </div>
+
             </div>
           )}
-
+          </>
+        )}
         </div>
       </div>
+
+      {/* Item Detail Modal */}
+      {selectedDetailItemId && (
+        <ItemDetailModal 
+          itemId={selectedDetailItemId} 
+          hideClaimButton={activeTab === 'claims'}
+          onClose={() => setSelectedDetailItemId(null)} 
+        />
+      )}
 
       {/* Report Creation Modal */}
       {isReportModalOpen && (

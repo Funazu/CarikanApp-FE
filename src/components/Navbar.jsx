@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import NotificationDrawer from './NotificationDrawer';
@@ -12,6 +13,7 @@ const Navbar = () => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   
   const dropdownRef = useRef(null);
@@ -60,9 +62,15 @@ const Navbar = () => {
     }
   };
 
-  const handleLogout = () => {
-    logout();
+  const promptLogout = () => {
     setDropdownOpen(false);
+    setMobileMenuOpen(false);
+    setIsLogoutModalOpen(true);
+  };
+
+  const confirmLogout = () => {
+    setIsLogoutModalOpen(false);
+    logout();
     navigate('/');
   };
 
@@ -200,8 +208,8 @@ const Navbar = () => {
 
                     <div className="py-1">
                       <button 
-                        onClick={handleLogout}
-                        className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 text-left w-full"
+                        onClick={promptLogout}
+                        className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 text-left w-full cursor-pointer font-semibold"
                       >
                         <span className="material-symbols-outlined text-lg select-none">logout</span>
                         Keluar
@@ -266,6 +274,48 @@ const Navbar = () => {
         notifications={notifications}
         onMarkAsRead={handleMarkAsRead}
       />
+
+      {/* Logout Confirmation Modal Portal */}
+      {isLogoutModalOpen && createPortal(
+        <div className="fixed inset-0 z-[9999] overflow-y-auto font-inter">
+          <div className="flex items-center justify-center min-h-screen px-4 text-center">
+            {/* Backdrop */}
+            <div 
+              className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity"
+              onClick={() => setIsLogoutModalOpen(false)}
+            ></div>
+
+            {/* Modal Box */}
+            <div className="inline-block align-middle bg-white rounded-3xl text-left overflow-hidden shadow-2xl transform transition-all max-w-sm w-full p-6 sm:p-7 relative z-10 animate-fade-in">
+              <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mb-4">
+                <span className="material-symbols-outlined text-2xl select-none">logout</span>
+              </div>
+
+              <h4 className="text-lg font-bold font-outfit text-gray-900 mb-1">Konfirmasi Keluar</h4>
+              <p className="text-xs text-gray-500 mb-6 leading-relaxed">
+                Apakah Anda yakin ingin keluar dari akun <span className="font-bold text-gray-800">{user?.name}</span>? Anda perlu masuk kembali untuk mengakses akun ini.
+              </p>
+
+              <div className="flex items-center justify-end gap-2.5 pt-2">
+                <button 
+                  onClick={() => setIsLogoutModalOpen(false)}
+                  className="w-full sm:w-auto px-5 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-xs font-bold hover:bg-gray-50 transition-all cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button 
+                  onClick={confirmLogout}
+                  className="w-full sm:w-auto px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-base select-none">logout</span>
+                  Ya, Keluar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </nav>
   );
 };
