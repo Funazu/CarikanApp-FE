@@ -22,6 +22,14 @@ const ItemDetailPage = () => {
   const [claimSuccess, setClaimSuccess] = useState('');
   const [claimError, setClaimError] = useState('');
 
+  // Report Found states for LOST items
+  const [isReportFoundModalOpen, setIsReportFoundModalOpen] = useState(false);
+  const [foundStorageLoc, setFoundStorageLoc] = useState('');
+  const [foundNote, setFoundNote] = useState('');
+  const [foundLoading, setFoundLoading] = useState(false);
+  const [foundSuccess, setFoundSuccess] = useState('');
+  const [foundError, setFoundError] = useState('');
+
   const fetchItemDetail = async () => {
     setLoading(true);
     try {
@@ -87,6 +95,36 @@ const ItemDetailPage = () => {
       setClaimError(err.response?.data?.message || 'Gagal mengajukan klaim.');
     } finally {
       setClaimLoading(false);
+    }
+  };
+
+  const handleReportFoundSubmit = async (e) => {
+    e.preventDefault();
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    setFoundLoading(true);
+    setFoundError('');
+    setFoundSuccess('');
+    try {
+      const res = await api.post(`/items/${id}/report-found`, {
+        storage_location: foundStorageLoc,
+        note: foundNote
+      });
+      setFoundSuccess(res.data.message || 'Laporan penemuan barang berhasil dikirim ke Satpam!');
+      setFoundStorageLoc('');
+      setFoundNote('');
+      setTimeout(() => {
+        setIsReportFoundModalOpen(false);
+        setFoundSuccess('');
+        fetchItemDetail();
+      }, 2000);
+    } catch (err) {
+      console.error(err);
+      setFoundError(err.response?.data?.message || 'Gagal mengirim laporan penemuan.');
+    } finally {
+      setFoundLoading(false);
     }
   };
 
@@ -215,34 +253,15 @@ const ItemDetailPage = () => {
             </button>
           )}
 
-          {/* Action Box: Kontak Pelapor (Hanya untuk Barang HILANG) */}
+          {/* Action Button: Laporkan Penemuan (Hanya untuk Barang HILANG) */}
           {!isOwner && item.type === 'LOST' && item.status === 'OPEN' && (
-            <div className="p-5 bg-blue-50/80 border border-blue-100 rounded-2xl space-y-3 text-xs">
-              <h4 className="font-bold text-blue-900 flex items-center gap-1.5 text-sm font-outfit">
-                <span className="material-symbols-outlined text-xl text-blue-600">contact_phone</span>
-                Menemukan Barang Ini? Hubungi Pelapor Kehilangan
-              </h4>
-              <p className="text-blue-700 leading-relaxed">
-                Jika Anda menemukan barang ini atau memiliki informasi terkait keberadaannya, silakan hubungi pemilik langsung melalui:
-              </p>
-              <div className="p-3.5 bg-white border border-blue-100 rounded-xl font-bold text-blue-900 text-sm flex items-center justify-between shadow-2xs">
-                <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-gray-400 text-lg">call</span>
-                  <span>{item.contact_info || item.user?.contact_info || 'Kontak tidak tersedia'}</span>
-                </div>
-                {((item.contact_info || item.user?.contact_info || '').replace(/[^0-9]/g, '').length >= 9) && (
-                  <a 
-                    href={`https://wa.me/${(item.contact_info || item.user?.contact_info).replace(/[^0-9]/g, '')}`} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="px-3.5 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition-colors flex items-center gap-1 shadow-xs"
-                  >
-                    <span className="material-symbols-outlined text-base">chat</span>
-                    Hubungi via WA
-                  </a>
-                )}
-              </div>
-            </div>
+            <button 
+              onClick={() => user ? setIsReportFoundModalOpen(true) : navigate('/login')}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 text-sm cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-lg">volunteer_activism</span>
+              Saya Menemukan Barang Ini (Serahkan ke Satpam)
+            </button>
           )}
 
           {item.status !== 'OPEN' && (
@@ -329,6 +348,83 @@ const ItemDetailPage = () => {
                   >
                     {claimLoading && <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>}
                     Kirim Klaim
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Report Found Modal */}
+      {isReportFoundModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 bg-black/40 backdrop-blur-xs" onClick={() => setIsReportFoundModalOpen(false)}></div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+
+            <div className="inline-block align-bottom bg-white rounded-3xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full p-8 font-inter">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-4 mb-6">
+                <h3 className="text-xl font-bold text-gray-900 font-outfit flex items-center gap-2">
+                  <span className="material-symbols-outlined text-emerald-600 text-2xl">volunteer_activism</span>
+                  Laporkan Penemuan Barang
+                </h3>
+                <button onClick={() => setIsReportFoundModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                  <span className="material-symbols-outlined text-2xl">close</span>
+                </button>
+              </div>
+
+              {foundSuccess && (
+                <div className="mb-4 bg-emerald-50 border border-emerald-100 text-emerald-800 rounded-xl p-3 text-xs font-semibold">
+                  {foundSuccess}
+                </div>
+              )}
+
+              {foundError && (
+                <div className="mb-4 bg-red-50 border border-red-100 text-red-800 rounded-xl p-3 text-xs font-semibold">
+                  {foundError}
+                </div>
+              )}
+
+              <form onSubmit={handleReportFoundSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Pos Satpam Penyerahan Barang (Wajib)</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={foundStorageLoc}
+                    onChange={(e) => setFoundStorageLoc(e.target.value)}
+                    placeholder="Contoh: Pos Satpam Gedung Utama / Loker Satpam Basement 1"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-emerald-600 focus:outline-none transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Catatan Tambahan (Opsional)</label>
+                  <textarea 
+                    rows="3"
+                    value={foundNote}
+                    onChange={(e) => setFoundNote(e.target.value)}
+                    placeholder="Jelaskan lokasi barang ditemukan atau nama petugas Satpam yang menerima..."
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-emerald-600 focus:outline-none transition-all"
+                  ></textarea>
+                </div>
+
+                <div className="pt-4 flex justify-end gap-3 border-t border-gray-100">
+                  <button 
+                    type="button" 
+                    onClick={() => setIsReportFoundModalOpen(false)}
+                    className="px-5 py-2.5 border border-gray-200 text-gray-500 rounded-xl text-xs font-bold hover:bg-gray-50 cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button 
+                    type="submit" 
+                    disabled={foundLoading}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 py-2.5 rounded-xl transition-all shadow-md text-xs inline-flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {foundLoading && <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>}
+                    Kirim & Serahkan ke Satpam
                   </button>
                 </div>
               </form>

@@ -5,6 +5,7 @@ import { useToast } from '../context/ToastContext';
 import api from '../services/api';
 import StatusBadge from '../components/StatusBadge';
 import ImageFallback from '../components/ImageFallback';
+import ErrorCountdownCard from '../components/ErrorCountdownCard';
 
 const AdminDashboard = () => {
   const { user } = useAuth();
@@ -63,9 +64,14 @@ const AdminDashboard = () => {
   const [takeoverStorageLoc, setTakeoverStorageLoc] = useState('');
 
   const [statsLoading, setStatsLoading] = useState(true);
+  const [isTabLoading, setIsTabLoading] = useState(true);
+  const [tabFetchError, setTabFetchError] = useState('');
+  const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
 
   // Fetch admin data on tab change
   const fetchData = async () => {
+    setIsTabLoading(true);
+    setTabFetchError('');
     try {
       if (activeSubTab === 'stats') {
         setStatsLoading(true);
@@ -96,6 +102,11 @@ const AdminDashboard = () => {
       }
     } catch (err) {
       console.error(err);
+      const seconds = err.response?.data?.retry_after_seconds || parseInt(err.response?.headers?.['retry-after'] || 0, 10);
+      setRetryAfterSeconds(seconds || 0);
+      setTabFetchError(err.response?.data?.message || 'Gagal memuat data panel admin.');
+    } finally {
+      setIsTabLoading(false);
     }
   };
 
@@ -178,11 +189,30 @@ const AdminDashboard = () => {
   };
 
   // Moderation Handlers
+  const handleOpenTakeoverModal = (itemToTakeover) => {
+    setTakeoverItem(itemToTakeover);
+    setTakeoverStorageLoc(itemToTakeover?.storage_location || '');
+  };
+
+  const handleApproveReportStatus = async (itemId, targetStatus) => {
+    try {
+      await api.put(`/items/${itemId}`, { status: targetStatus });
+      const statusText = targetStatus === 'OPEN' ? 'diverifikasi & dipublikasikan' : 'ditandai Selesai / Dikembalikan';
+      showToast(`Laporan berhasil ${statusText}!`, 'success');
+      if (detailItem && detailItem.id === itemId) {
+        setDetailItem(null);
+      }
+      fetchData();
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Gagal mengubah status laporan.', 'error');
+    }
+  };
+
   const handleTakeoverSubmit = async (e) => {
     e.preventDefault();
     try {
       await api.put(`/items/${takeoverItem.id}`, {
-        status: takeoverItem.type === 'FOUND' ? 'OPEN' : 'IN_PROCESS',
+        status: 'OPEN',
         storage_location: takeoverStorageLoc
       });
       showToast('Proses Takeover Satpam sukses! Laporan berhasil diperbarui.', 'success');
@@ -260,34 +290,38 @@ const AdminDashboard = () => {
     }
   };
 
-  // Computed / Filtered datasets
-  const filteredReports = allReports.filter((item) => {
-    const matchesSearch =
-      !modSearchTerm ||
-      item.title?.toLowerCase().includes(modSearchTerm.toLowerCase()) ||
-      item.description?.toLowerCase().includes(modSearchTerm.toLowerCase()) ||
-      item.secret_feature?.toLowerCase().includes(modSearchTerm.toLowerCase()) ||
-      item.user?.name?.toLowerCase().includes(modSearchTerm.toLowerCase());
+  // Computed / Filtered datasets (Sorted newest first)
+  const filteredReports = [...allReports]
+    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0) || b.id - a.id)
+    .filter((item) => {
+      const matchesSearch =
+        !modSearchTerm ||
+        item.title?.toLowerCase().includes(modSearchTerm.toLowerCase()) ||
+        item.description?.toLowerCase().includes(modSearchTerm.toLowerCase()) ||
+        item.secret_feature?.toLowerCase().includes(modSearchTerm.toLowerCase()) ||
+        item.user?.name?.toLowerCase().includes(modSearchTerm.toLowerCase());
 
-    const matchesType = modTypeFilter === 'ALL' || item.type === modTypeFilter;
-    const matchesStatus = modStatusFilter === 'ALL' || item.status === modStatusFilter;
-    const matchesCategory = modCategoryFilter === 'ALL' || item.category_id === modCategoryFilter;
+      const matchesType = modTypeFilter === 'ALL' || item.type === modTypeFilter;
+      const matchesStatus = modStatusFilter === 'ALL' || item.status === modStatusFilter;
+      const matchesCategory = modCategoryFilter === 'ALL' || item.category_id === modCategoryFilter;
 
-    return matchesSearch && matchesType && matchesStatus && matchesCategory;
-  });
+      return matchesSearch && matchesType && matchesStatus && matchesCategory;
+    });
 
-  const filteredClaims = incomingClaims.filter((claim) => {
-    const matchesSearch =
-      !claimSearchTerm ||
-      claim.item?.title?.toLowerCase().includes(claimSearchTerm.toLowerCase()) ||
-      claim.claimer?.name?.toLowerCase().includes(claimSearchTerm.toLowerCase()) ||
-      claim.claimer?.email?.toLowerCase().includes(claimSearchTerm.toLowerCase()) ||
-      claim.proof_description?.toLowerCase().includes(claimSearchTerm.toLowerCase());
+  const filteredClaims = [...incomingClaims]
+    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0) || b.id - a.id)
+    .filter((claim) => {
+      const matchesSearch =
+        !claimSearchTerm ||
+        claim.item?.title?.toLowerCase().includes(claimSearchTerm.toLowerCase()) ||
+        claim.claimer?.name?.toLowerCase().includes(claimSearchTerm.toLowerCase()) ||
+        claim.claimer?.email?.toLowerCase().includes(claimSearchTerm.toLowerCase()) ||
+        claim.proof_description?.toLowerCase().includes(claimSearchTerm.toLowerCase());
 
-    const matchesStatus = claimStatusFilter === 'ALL' || claim.status === claimStatusFilter;
+      const matchesStatus = claimStatusFilter === 'ALL' || claim.status === claimStatusFilter;
 
-    return matchesSearch && matchesStatus;
-  });
+      return matchesSearch && matchesStatus;
+    });
 
   const filteredUsers = usersList.filter((u) => {
     const matchesSearch =
@@ -353,8 +387,30 @@ const AdminDashboard = () => {
       </div>
 
       {/* Content Render panels */}
-      
-      {/* 1. Stats Dashboard */}
+      {isTabLoading ? (
+        <div className="bg-white border border-gray-100 rounded-3xl p-6 md:p-8 shadow-sm space-y-6 text-left font-inter">
+          <div className="h-6 bg-gray-100 rounded-lg w-1/4 animate-pulse mb-6"></div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            {[1, 2, 3].map((n) => (
+              <div key={n} className="h-24 bg-gray-100 rounded-2xl animate-pulse"></div>
+            ))}
+          </div>
+          <div className="space-y-3">
+            {[1, 2, 3, 4].map((n) => (
+              <div key={n} className="h-16 bg-gray-100 rounded-2xl animate-pulse"></div>
+            ))}
+          </div>
+        </div>
+      ) : tabFetchError ? (
+        <ErrorCountdownCard 
+          message={tabFetchError}
+          retryAfter={retryAfterSeconds}
+          onRetry={fetchData}
+          title="Gagal Memuat Panel Admin"
+        />
+      ) : (
+        <>
+          {/* 1. Stats Dashboard */}
       {activeSubTab === 'stats' && (
         <div className="space-y-6 text-left">
           {statsLoading ? (
@@ -527,14 +583,41 @@ const AdminDashboard = () => {
                         Log Audit
                       </button>
 
-                      {((item.type === 'FOUND' && item.status === 'IN_PROCESS') || 
-                        (item.type === 'LOST' && item.status === 'OPEN' && !item.storage_location)) && (
+                      {item.status === 'IN_PROCESS' && !item.storage_location && (
                         <button 
-                          onClick={() => setTakeoverItem(item)}
-                          className="bg-amber-50 text-amber-700 hover:bg-amber-600 hover:text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                          onClick={() => handleApproveReportStatus(item.id, 'OPEN')}
+                          className="bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
                         >
-                          <span className="material-symbols-outlined text-sm">hail</span>
-                          Takeover Satpam
+                          <span className="material-symbols-outlined text-sm select-none">verified</span>
+                          Verifikasi & Publish
+                        </button>
+                      )}
+
+                      {item.status === 'OPEN' && item.type === 'LOST' && item.storage_location && (
+                        <button 
+                          onClick={() => handleApproveReportStatus(item.id, 'IN_PROCESS')}
+                          className="bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-sm select-none">verified_user</span>
+                          Konfirmasi Terima Barang
+                        </button>
+                      )}
+
+                      <button 
+                        onClick={() => handleOpenTakeoverModal(item)}
+                        className="bg-amber-50 text-amber-700 hover:bg-amber-600 hover:text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-sm select-none">inventory_2</span>
+                        Loker Satpam
+                      </button>
+
+                      {item.status !== 'RETURNED' && (
+                        <button 
+                          onClick={() => handleApproveReportStatus(item.id, 'RETURNED')}
+                          className="bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-sm select-none">check_circle</span>
+                          Dikembalikan
                         </button>
                       )}
 
@@ -565,7 +648,9 @@ const AdminDashboard = () => {
                     </div>
                     <div>
                       <p className="text-gray-400 uppercase font-bold tracking-wider">Pelapor</p>
-                      <p className="text-gray-900 font-semibold mt-1">{item.user?.name} ({item.user?.email})</p>
+                      <p className="text-gray-900 font-semibold mt-1">
+                        {item.user ? `${item.user.name} (${item.user.email})` : 'Pengguna Anonim'}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -999,6 +1084,8 @@ const AdminDashboard = () => {
           </div>
         </div>
       )}
+      </>
+    )}
 
       {/* --- MODALS --- */}
 
@@ -1091,7 +1178,7 @@ const AdminDashboard = () => {
                     {((detailItem.type === 'FOUND' && detailItem.status === 'IN_PROCESS') || 
                       (detailItem.type === 'LOST' && detailItem.status === 'OPEN' && !detailItem.storage_location)) && (
                       <button 
-                        onClick={() => { setTakeoverItem(detailItem); }}
+                        onClick={() => { handleOpenTakeoverModal(detailItem); }}
                         className="bg-amber-50 text-amber-700 hover:bg-amber-600 hover:text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
                       >
                         <span className="material-symbols-outlined text-sm">hail</span>

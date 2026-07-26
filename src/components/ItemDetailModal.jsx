@@ -19,6 +19,14 @@ const ItemDetailModal = ({ itemId, onClose, hideClaimButton = false }) => {
   const [claimSuccess, setClaimSuccess] = useState('');
   const [claimError, setClaimError] = useState('');
 
+  // Report Found states for LOST items
+  const [isReportingFound, setIsReportingFound] = useState(false);
+  const [foundStorageLoc, setFoundStorageLoc] = useState('');
+  const [foundNote, setFoundNote] = useState('');
+  const [foundLoading, setFoundLoading] = useState(false);
+  const [foundSuccess, setFoundSuccess] = useState('');
+  const [foundError, setFoundError] = useState('');
+
   useEffect(() => {
     if (!itemId) return;
     const fetchItem = async () => {
@@ -78,6 +86,34 @@ const ItemDetailModal = ({ itemId, onClose, hideClaimButton = false }) => {
     }
   };
 
+  const handleReportFoundSubmit = async (e) => {
+    e.preventDefault();
+    if (!user) {
+      alert('Silakan login terlebih dahulu untuk melaporkan penemuan barang.');
+      return;
+    }
+    setFoundLoading(true);
+    setFoundError('');
+    setFoundSuccess('');
+    try {
+      const res = await api.post(`/items/${itemId}/report-found`, {
+        storage_location: foundStorageLoc,
+        note: foundNote
+      });
+      setFoundSuccess(res.data.message || 'Laporan penemuan barang berhasil dikirim ke Satpam!');
+      setTimeout(() => {
+        setIsReportingFound(false);
+        setFoundSuccess('');
+        onClose();
+      }, 1800);
+    } catch (err) {
+      console.error(err);
+      setFoundError(err.response?.data?.message || 'Gagal mengirim laporan penemuan.');
+    } finally {
+      setFoundLoading(false);
+    }
+  };
+
   const isOwner = user && item && user.id === item.user_id;
   const isAdmin = user && user.role === 'ADMIN';
 
@@ -119,6 +155,73 @@ const ItemDetailModal = ({ itemId, onClose, hideClaimButton = false }) => {
               <span className="material-symbols-outlined text-red-500 text-5xl mb-2 select-none">error</span>
               <p className="text-sm font-bold text-gray-800">Laporan Tidak Ditemukan</p>
               <p className="text-xs text-gray-400 mt-1">Laporan barang ini mungkin telah dihapus atau tidak tersedia.</p>
+            </div>
+          ) : isReportingFound ? (
+            /* Form Penyerahan Barang Kehilangan ke Satpam */
+            <div className="space-y-4 font-inter">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <h4 className="font-bold text-emerald-900 font-outfit text-base flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-emerald-600 text-xl select-none">volunteer_activism</span>
+                  Laporkan Penemuan Barang (Serahkan ke Satpam)
+                </h4>
+                <button onClick={() => setIsReportingFound(false)} className="text-xs text-emerald-700 font-bold hover:underline">
+                  &larr; Batal
+                </button>
+              </div>
+
+              {foundSuccess && (
+                <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-3 rounded-xl text-xs font-bold">
+                  {foundSuccess}
+                </div>
+              )}
+              {foundError && (
+                <div className="bg-red-50 border border-red-200 text-red-800 p-3 rounded-xl text-xs font-bold">
+                  {foundError}
+                </div>
+              )}
+
+              <form onSubmit={handleReportFoundSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Pos Satpam Penyerahan Barang (Wajib)</label>
+                  <input 
+                    type="text"
+                    required
+                    value={foundStorageLoc}
+                    onChange={(e) => setFoundStorageLoc(e.target.value)}
+                    placeholder="Contoh: Pos Satpam Gedung Utama / Loker Satpam Basement 1"
+                    className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold focus:bg-white focus:border-emerald-600 focus:outline-none transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Catatan Tambahan (Opsional)</label>
+                  <textarea 
+                    rows="3"
+                    value={foundNote}
+                    onChange={(e) => setFoundNote(e.target.value)}
+                    placeholder="Jelaskan lokasi barang ditemukan atau nama petugas Satpam yang menerima..."
+                    className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:bg-white focus:border-emerald-600 focus:outline-none transition-all"
+                  ></textarea>
+                </div>
+
+                <div className="pt-2 flex justify-end gap-2 border-t border-gray-100">
+                  <button 
+                    type="button" 
+                    onClick={() => setIsReportingFound(false)}
+                    className="px-4 py-2 border border-gray-200 text-gray-500 rounded-xl text-xs font-bold hover:bg-gray-50 cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button 
+                    type="submit" 
+                    disabled={foundLoading}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-2 rounded-xl transition-all shadow-md text-xs inline-flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {foundLoading && <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>}
+                    Kirim & Serahkan ke Satpam
+                  </button>
+                </div>
+              </form>
             </div>
           ) : isClaiming ? (
             /* Claim Submission Form Inside Modal */
@@ -298,26 +401,13 @@ const ItemDetailModal = ({ itemId, onClose, hideClaimButton = false }) => {
               )}
 
               {!isOwner && item.type === 'LOST' && item.status === 'OPEN' && (
-                <div className="p-4 bg-blue-50/80 border border-blue-100 rounded-xl space-y-2 text-xs">
-                  <h5 className="font-bold text-blue-900 flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-lg text-blue-600 select-none">contact_phone</span>
-                    Kontak Pelapor Kehilangan
-                  </h5>
-                  <div className="p-2.5 bg-white border border-blue-100 rounded-lg font-bold text-blue-900 text-xs flex items-center justify-between">
-                    <span>{item.contact_info || item.user?.contact_info || 'Kontak tidak tersedia'}</span>
-                    {((item.contact_info || item.user?.contact_info || '').replace(/[^0-9]/g, '').length >= 9) && (
-                      <a 
-                        href={`https://wa.me/${(item.contact_info || item.user?.contact_info).replace(/[^0-9]/g, '')}`} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="px-3 py-1 bg-emerald-600 text-white rounded-md text-[11px] font-bold hover:bg-emerald-700 transition-colors flex items-center gap-1 shadow-xs"
-                      >
-                        <span className="material-symbols-outlined text-sm select-none">chat</span>
-                        Hubungi via WA
-                      </a>
-                    )}
-                  </div>
-                </div>
+                <button 
+                  onClick={() => setIsReportingFound(true)}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 text-xs cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-lg select-none">volunteer_activism</span>
+                  Saya Menemukan Barang Ini (Serahkan ke Satpam)
+                </button>
               )}
             </div>
           )}

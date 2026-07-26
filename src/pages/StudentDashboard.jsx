@@ -55,6 +55,7 @@ const StudentDashboard = () => {
   const [tabFetchError, setTabFetchError] = useState('');
   const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
   const [selectedDetailItemId, setSelectedDetailItemId] = useState(null);
+  const [isTabLoading, setIsTabLoading] = useState(true);
 
   // Fetch dropdown metadata
   useEffect(() => {
@@ -86,6 +87,7 @@ const StudentDashboard = () => {
   // Fetch dashboard tab data
   const fetchTabData = async () => {
     if (!user) return;
+    setIsTabLoading(true);
     setTabFetchError('');
     try {
       if (activeTab === 'summary') {
@@ -113,6 +115,8 @@ const StudentDashboard = () => {
       setRetryAfterSeconds(seconds || 0);
       const msg = err.response?.data?.message || 'Gagal memuat data dashboard.';
       setTabFetchError(msg);
+    } finally {
+      setIsTabLoading(false);
     }
   };
 
@@ -409,7 +413,23 @@ const StudentDashboard = () => {
         {/* Right Side Content Panel */}
         <div className="lg:col-span-3 bg-white border border-gray-100 rounded-3xl p-6 md:p-8 shadow-sm">
           
-          {tabFetchError ? (
+          {isTabLoading ? (
+            <div className="space-y-4 font-inter text-left">
+              <div className="h-6 bg-gray-100 rounded-lg w-1/3 animate-pulse mb-6"></div>
+              {[1, 2, 3].map((n) => (
+                <div key={n} className="p-4 border border-gray-100 rounded-2xl flex items-center justify-between animate-pulse">
+                  <div className="flex items-center gap-3 w-2/3">
+                    <div className="w-12 h-12 bg-gray-100 rounded-xl"></div>
+                    <div className="space-y-2 flex-1">
+                      <div className="h-4 bg-gray-100 rounded-md w-3/4"></div>
+                      <div className="h-3 bg-gray-100 rounded-md w-1/2"></div>
+                    </div>
+                  </div>
+                  <div className="h-8 bg-gray-100 rounded-xl w-24"></div>
+                </div>
+              ))}
+            </div>
+          ) : tabFetchError ? (
             <ErrorCountdownCard 
               message={tabFetchError}
               retryAfter={retryAfterSeconds}
@@ -908,20 +928,22 @@ const StudentDashboard = () => {
                   </div>
                 )}
 
-                <div>
-                  <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Ciri Rahasia Barang</label>
-                  <input 
-                    type="text" 
-                    required
-                    value={reportSecret}
-                    onChange={(e) => setReportSecret(e.target.value)}
-                    placeholder="Contoh: Gantungan kunci kucing orange, retak kecil di pojok kanan bawah"
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-secondary focus:ring-1 focus:ring-secondary focus:outline-none transition-all-200"
-                  />
-                  <span className="text-[10px] text-gray-400 mt-1 block leading-normal">
-                    Penting: Ciri rahasia ini TIDAK dipublikasikan di feed. Hanya untuk memverifikasi klaim kepemilikan.
-                  </span>
-                </div>
+                {reportType === 'FOUND' && (
+                  <div>
+                    <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Ciri Rahasia Barang (Wajib untuk Temuan)</label>
+                    <input 
+                      type="text" 
+                      required={reportType === 'FOUND'}
+                      value={reportSecret}
+                      onChange={(e) => setReportSecret(e.target.value)}
+                      placeholder="Contoh: Gantungan kunci kucing orange, retak kecil di pojok kanan bawah"
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-secondary focus:ring-1 focus:ring-secondary focus:outline-none transition-all-200"
+                    />
+                    <span className="text-[10px] text-gray-400 mt-1 block leading-normal">
+                      Penting: Ciri rahasia ini disembunyikan dari publik dan digunakan Satpam untuk menguji kebenaran klaim pengklaim.
+                    </span>
+                  </div>
+                )}
 
                 {/* Upload Image Section */}
                 <div>
